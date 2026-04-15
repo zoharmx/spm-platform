@@ -77,14 +77,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const auth = getFirebaseAuth();
 
-    // Capture errors from the Google redirect flow (e.g. auth/unauthorized-domain)
-    // getRedirectResult resolves to null when there was no redirect — not an error
-    getRedirectResult(auth).catch((err: { code?: string }) => {
-      const code = err?.code ?? "auth/unknown";
-      if (code !== "auth/no-auth-event") {
-        setRedirectError(code);
-      }
-    });
+    // Only process the redirect result when WE initiated the redirect.
+    // Calling getRedirectResult unconditionally surfaces stale errors stored
+    // in Firebase's IndexedDB from previous failed attempts, even after the
+    // domain has been authorized — creating a ghost error loop.
+    const redirectPending = sessionStorage.getItem("spm_auth_redirect") === "1";
+    if (redirectPending) {
+      sessionStorage.removeItem("spm_auth_redirect");
+      getRedirectResult(auth).catch((err: { code?: string }) => {
+        const code = err?.code ?? "auth/unknown";
+        if (code !== "auth/no-auth-event") {
+          setRedirectError(code);
+        }
+      });
+    }
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
@@ -147,7 +153,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    // signInWithRedirect navega fuera de la app — no hace falta await
+    // Mark that WE initiated this redirect so getRedirectResult is only
+    // processed on the way back — avoids surfacing stale errors from prior
+    // failed attempts stored in Firebase's IndexedDB.
+    sessionStorage.setItem("spm_auth_redirect", "1");
     await signInWithRedirect(auth, provider);
   }
 
