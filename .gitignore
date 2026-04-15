@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Environment variables — NEVER commit
+.env.local
+.env.*.local
+
+# Firebase credentials
+*-service-account*.json
+*-credentials*.json
