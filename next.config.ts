@@ -61,6 +61,13 @@ const securityHeaders = [
     : []),
 ];
 
+// Firebase Auth domain used to proxy /__/auth/* routes
+// When authDomain is a custom domain (not project.firebaseapp.com), Firebase Auth's
+// popup/iframe handler lives at /__/auth/. Without this proxy the browser gets 404
+// because Next.js doesn't serve those paths.
+const firebaseAuthDomain =
+  process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "";
+
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
@@ -71,6 +78,18 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   reactStrictMode: true,
+  async rewrites() {
+    if (!firebaseAuthDomain) return [];
+    // Proxy Firebase Auth handler + iframe to the authoritative Firebase domain.
+    // Required when authDomain is a custom domain so that signInWithPopup /
+    // signInWithRedirect can load /__/auth/handler and /__/auth/iframe.
+    return [
+      {
+        source: "/__/auth/:path*",
+        destination: `https://${firebaseAuthDomain}/__/auth/:path*`,
+      },
+    ];
+  },
   async headers() {
     return [
       {

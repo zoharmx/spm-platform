@@ -35,6 +35,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|images|videos|api).*)",
+    // Exclude static assets, API routes, and Firebase Auth handler paths (/__/auth/*)
+    "/((?!_next/static|_next/image|favicon.ico|manifest.json|icons|images|videos|api|__/).*)",
   ],
 };
