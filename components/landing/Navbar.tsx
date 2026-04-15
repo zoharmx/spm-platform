@@ -39,21 +39,22 @@ export default function Navbar() {
       }`}
     >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-20">
+        <div className="flex items-center justify-between h-[72px] lg:h-[86px]">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-10 h-10 lg:w-12 lg:h-12">
+            <div className="relative w-[54px] h-[54px] lg:w-[72px] lg:h-[72px] flex-shrink-0">
               <Image
                 src="/images/logo.png"
                 alt="SanPedroMotoCare"
                 fill
-                className="object-contain"
+                sizes="72px"
+                className="object-contain drop-shadow-lg"
                 priority
               />
             </div>
             <div className="hidden sm:block">
               <span
-                className={`font-display font-bold text-lg lg:text-xl leading-tight ${
+                className={`font-display font-bold text-xl lg:text-2xl leading-tight ${
                   scrolled || menuOpen
                     ? isDark
                       ? "text-white"
@@ -63,7 +64,7 @@ export default function Navbar() {
               >
                 SanPedro
               </span>
-              <span className="font-display font-bold text-lg lg:text-xl text-[var(--color-spm-red)] leading-tight">
+              <span className="font-display font-bold text-xl lg:text-2xl text-[var(--color-spm-red)] leading-tight">
                 MotoCare
               </span>
             </div>

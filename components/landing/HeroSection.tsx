@@ -63,30 +63,30 @@ export default function HeroSection() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-20">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 lg:pt-32 lg:pb-20">
         <div className="text-center">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium">
-            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            {t("hero_badge")}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 mb-6 sm:mb-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-xs sm:text-sm font-medium">
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
+            <span className="truncate max-w-[240px] sm:max-w-none">{t("hero_badge")}</span>
           </div>
 
           {/* Headline */}
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-7xl font-bold text-white mb-6 leading-tight">
+          <h1 className="font-display text-[2.2rem] leading-[1.15] sm:text-5xl lg:text-7xl font-bold text-white mb-4 sm:mb-6">
             {t("hero_title")}{" "}
-            <span className="relative">
+            <span className="relative inline-block">
               <span className="gradient-text">{t("hero_title_accent")}</span>
               <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-gradient-to-r from-[var(--color-spm-red)] to-[var(--color-spm-orange)] rounded" />
             </span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-lg sm:text-xl text-white/75 max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-base sm:text-lg lg:text-xl text-white/75 max-w-xl sm:max-w-2xl mx-auto mb-6 sm:mb-10 leading-relaxed px-2 sm:px-0">
             {t("hero_subtitle")}
           </p>
 
-          {/* Feature Pills */}
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
+          {/* Feature Pills — ocultas en mobile XS para ahorrar espacio */}
+          <div className="hidden sm:flex flex-wrap items-center justify-center gap-3 mb-8 sm:mb-10">
             {features.map(({ icon: Icon, text }) => (
               <div
                 key={text}
@@ -99,17 +99,17 @@ export default function HeroSection() {
           </div>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-12 sm:mb-20">
             <a
               href="#cotizar"
-              className="group flex items-center gap-2 px-8 py-4 bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white font-bold text-base lg:text-lg rounded-2xl shadow-xl shadow-red-900/30 transition-all hover:scale-105 hover:shadow-red-900/50"
+              className="group w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white font-bold text-base lg:text-lg rounded-2xl shadow-xl shadow-red-900/30 transition-all hover:scale-105 hover:shadow-red-900/50 active:scale-95"
             >
               {t("hero_cta_quote")}
               <ChevronDown size={18} className="group-hover:translate-y-0.5 transition-transform" />
             </a>
             <a
               href="#tracking"
-              className="flex items-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/25 text-white font-bold text-base lg:text-lg rounded-2xl transition-all hover:scale-105"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/25 text-white font-bold text-base lg:text-lg rounded-2xl transition-all hover:scale-105 active:scale-95"
             >
               {t("hero_cta_track")}
             </a>
@@ -118,15 +118,15 @@ export default function HeroSection() {
           {/* Stats */}
           <div
             ref={statsRef}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-3xl mx-auto"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto"
           >
             {stats.map((stat, i) => (
               <div
                 key={i}
-                className="flex flex-col items-center p-5 rounded-2xl bg-white/8 backdrop-blur-sm border border-white/10 hover:border-[var(--color-spm-red)]/50 transition-all group"
+                className="flex flex-col items-center p-4 sm:p-5 rounded-2xl bg-white/8 backdrop-blur-sm border border-white/10 hover:border-[var(--color-spm-red)]/50 transition-all group"
               >
-                <span className="text-2xl mb-1">{stat.icon}</span>
-                <div className="font-display font-bold text-3xl text-white mb-1">
+                <span className="text-xl sm:text-2xl mb-1">{stat.icon}</span>
+                <div className="font-display font-bold text-2xl sm:text-3xl text-white mb-1">
                   {statsInView ? (
                     <CountUp end={stat.value} duration={2} delay={i * 0.1} />
                   ) : (

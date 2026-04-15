@@ -134,8 +134,8 @@ export default function Footer() {
           <Image
             src="/images/spm1.png"
             alt="SanPedroMotoCare"
-            width={576}
-            height={144}
+            width={320}
+            height={80}
             className="object-contain opacity-60 hover:opacity-100 transition-opacity"
           />
         </div>
