@@ -1,48 +1,36 @@
 # SanPedroMotoCare — Plataforma Unificada
 
-Plataforma de primer nivel para SanPedroMotoCare: mecánicos a domicilio en San Pedro Garza García y área metropolitana de Monterrey.
+> Mecánicos certificados a domicilio en San Pedro Garza García y área metropolitana de Monterrey.
+
+**Producción:** https://spm-platform.vercel.app
+**Repositorio:** https://github.com/zoharmx/spm-platform
+**Stack:** Next.js 16 · TypeScript · Tailwind CSS v4 · Firebase · Gemini AI · Vercel
+
+---
 
 ## Módulos
 
 | URL | Módulo | Audiencia |
 |-----|--------|-----------|
 | `/` | Landing Page | Público |
-| `/tracking` | Rastreo en tiempo real | Clientes |
-| `/cotizar` | Cotizador gratis | Clientes |
-| `/portal` | Portal del Cliente | Clientes (auth) |
-| `/crm/dashboard` | Dashboard CRM | Operadores / Admin |
-| `/crm/contact-center` | Contact Center | Operadores |
+| `/tracking` | Rastreo SPM-XXXX | Público |
+| `/cotizar` | Cotizador | Público |
+| `/portal` | Portal Cliente | Clientes (auth) |
+| `/crm/dashboard` | Dashboard CRM | Operadores+ |
+| `/crm/contact-center` | Contact Center | Operadores+ |
 | `/login` | Autenticación | Todos |
-
-## Stack
-
-- **Next.js 16** (App Router) + **TypeScript**
-- **Tailwind CSS v4**
-- **Firebase** (Firestore + Auth + Realtime DB)
-- **Google Gemini AI** (chatbot)
-- **Vercel** (hosting)
-- **PWA** (manifest + install prompt)
-
-## Features
-
-- Dark/light mode toggle
-- Español / English
-- PWA con install prompt
-- Chatbot Gemini AI
-- Tracking en tiempo real (SPM-XXXX)
-- Cotizador integrado
-- RBAC 5 roles (admin, manager, operador, mecanico, viewer)
 
 ## Setup
 
 ```bash
-cp .env.example .env.local
-# Configurar credenciales Firebase + Gemini API Key
+git clone https://github.com/zoharmx/spm-platform.git
+cd spm-platform
 npm install
+cp .env.example .env.local   # completar credenciales
 npm run dev
 ```
 
-## Deploy en Vercel
+## Deploy
 
 ```bash
 vercel --prod
