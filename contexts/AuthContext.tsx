@@ -144,13 +144,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { id: snap.id, ...data } as SPMUser;
     }
 
-    // Firestore rejects `undefined` — use null for optional fields
     const newUser: Omit<SPMUser, "id"> = {
       uid: fbUser.uid,
       email: fbUser.email ?? "",
       displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
       role: "viewer",
-      photoURL: fbUser.photoURL ?? null,
+      // undefined is valid for the TypeScript type but Firestore rejects it —
+      // keep it undefined in the object but exclude it from the Firestore doc below
+      ...(fbUser.photoURL ? { photoURL: fbUser.photoURL } : {}),
       isActive: true,
     };
 
