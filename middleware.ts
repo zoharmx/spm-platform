@@ -3,24 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 // Routes that require authentication
 const PROTECTED_ROUTES = ["/portal", "/crm", "/mecanico"];
 
-// Routes that redirect if already authenticated
+// Routes that redirect authenticated users away
 const AUTH_ROUTES = ["/login"];
 
-export function proxy(request: NextRequest) {
+export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check for session cookie (Firebase sets __session)
+  // Read the HttpOnly session cookie set by /api/auth/session
   const sessionCookie = request.cookies.get("__session");
-  const isAuthenticated = !!sessionCookie;
+  const isAuthenticated = !!sessionCookie?.value;
 
   // Redirect authenticated users away from login
   if (AUTH_ROUTES.some((r) => pathname.startsWith(r)) && isAuthenticated) {
     return NextResponse.redirect(new URL("/portal", request.url));
   }
 
-  // Protected routes — redirect to login if not authenticated
-  // Note: Full auth is handled client-side with Firebase;
-  // this is a lightweight pre-check for better UX.
+  // UX pre-check for protected routes — full token verification happens server-side.
+  // This prevents unauthenticated users from seeing a flash of protected content.
   if (
     PROTECTED_ROUTES.some((r) => pathname.startsWith(r)) &&
     !isAuthenticated

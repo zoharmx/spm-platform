@@ -13,6 +13,21 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFirebaseAuth, getDb } from "@/lib/firebase";
 import type { SPMUser, UserRole } from "@/types";
 
+/** Exchange a Firebase ID token for an HttpOnly session cookie. */
+async function createServerSession(fbUser: FirebaseUser): Promise<void> {
+  const idToken = await fbUser.getIdToken();
+  await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+}
+
+/** Clear the server-side session cookie. */
+async function destroyServerSession(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" });
+}
+
 interface AuthContextValue {
   user: SPMUser | null;
   firebaseUser: FirebaseUser | null;
@@ -43,6 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        // Ensure server-side session cookie exists (idempotent — safe to call on page refresh)
+        await createServerSession(fbUser);
         const spmUser = await fetchOrCreateUser(fbUser);
         setUser(spmUser);
       } else {
@@ -98,6 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     const auth = getFirebaseAuth();
+    // Clear the server-side HttpOnly cookie BEFORE signing out of Firebase
+    await destroyServerSession();
     await firebaseSignOut(auth);
     setUser(null);
     setFirebaseUser(null);
