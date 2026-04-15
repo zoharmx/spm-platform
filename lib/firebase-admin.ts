@@ -15,12 +15,16 @@ function initAdmin(): App {
 
   if (serviceAccountKey) {
     try {
-      const serviceAccount = JSON.parse(serviceAccountKey);
+      // Vercel may store the private_key with literal \n instead of real newlines.
+      // Normalize before parsing so JSON.parse + cert() work correctly.
+      const normalized = serviceAccountKey.replace(/\\n/g, "\n");
+      const serviceAccount = JSON.parse(normalized);
       adminApp = initializeApp({
         credential: cert(serviceAccount),
         databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
       });
-    } catch {
+    } catch (err) {
+      console.error("[Admin] Failed to init with service account:", err);
       // Fallback to ADC
       adminApp = initializeApp({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
