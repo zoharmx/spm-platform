@@ -4,7 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   type User as FirebaseUser,
@@ -17,6 +18,7 @@ interface AuthContextValue {
   user: SPMUser | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
+  redirectError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -33,17 +35,7 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/**
- * Sets a client-accessible cookie that the middleware uses as an auth presence
- * indicator. This is a fallback for when Firebase Admin SDK session cookie
- * creation fails (e.g. FIREBASE_SERVICE_ACCOUNT_KEY not configured in Vercel).
- *
- * Security: the real auth checks happen in each protected page via useAuth().
- * The middleware only uses this cookie for the UX redirect (avoid flashing
- * protected pages to unauthenticated users). It is NOT a security boundary.
- */
 function setAuthPresenceCookie(uid: string) {
-  // Expires in 24 h — matches Firebase ID token refresh cycle
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
   document.cookie = `__auth=${encodeURIComponent(uid)}; path=/; expires=${expires}; SameSite=Lax`;
 }
@@ -52,10 +44,6 @@ function clearAuthPresenceCookie() {
   document.cookie = "__auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
 }
 
-/**
- * Attempts to create a server-side HttpOnly session cookie via Firebase Admin.
- * Falls back silently — the app works via __auth presence cookie if this fails.
- */
 async function syncSessionCookie(fbUser: FirebaseUser): Promise<void> {
   try {
     const idToken = await fbUser.getIdToken();
@@ -76,7 +64,7 @@ async function clearSessionCookie(): Promise<void> {
   try {
     await fetch("/api/auth/session", { method: "DELETE" });
   } catch {
-    // Best-effort cleanup
+    // best-effort
   }
 }
 
@@ -84,15 +72,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SPMUser | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirectError, setRedirectError] = useState<string | null>(null);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
+
+    // Capture errors from the Google redirect flow (e.g. auth/unauthorized-domain)
+    // getRedirectResult resolves to null when there was no redirect — not an error
+    getRedirectResult(auth).catch((err: { code?: string }) => {
+      const code = err?.code ?? "auth/unknown";
+      if (code !== "auth/no-auth-event") {
+        setRedirectError(code);
+      }
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // Set the presence cookie FIRST so the middleware sees it immediately
         setAuthPresenceCookie(fbUser.uid);
-        // Try to upgrade to HttpOnly Admin session cookie (best-effort)
         await syncSessionCookie(fbUser);
         const spmUser = await fetchOrCreateUser(fbUser);
         setUser(spmUser);
@@ -102,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
@@ -140,11 +138,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   }
 
+  /**
+   * Inicia el flujo de Google con redirect (sin popup ni iframe).
+   * Compatible con Edge, Safari, móvil y cualquier política de seguridad.
+   * La respuesta se recibe en onAuthStateChanged cuando el navegador vuelve.
+   */
   async function signInWithGoogle() {
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    await signInWithPopup(auth, provider);
+    // signInWithRedirect navega fuera de la app — no hace falta await
+    await signInWithRedirect(auth, provider);
   }
 
   async function signOut() {
@@ -163,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, firebaseUser, loading, signIn, signInWithGoogle, signOut, hasRole }}
+      value={{ user, firebaseUser, loading, redirectError, signIn, signInWithGoogle, signOut, hasRole }}
     >
       {children}
     </AuthContext.Provider>

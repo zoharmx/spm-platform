@@ -47,7 +47,7 @@ export default function HeroSection() {
           loop
           playsInline
           preload="metadata"
-          poster="/images/SPM1.png"
+          poster="/images/spm1.png"
           onCanPlay={() => setVideoLoaded(true)}
           style={{ objectPosition: "center center" }}
         >
