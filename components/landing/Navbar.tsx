@@ -124,13 +124,30 @@ export default function Navbar() {
 
             {/* CTA / Portal Button */}
             {user ? (
-              <Link
-                href={user.role === "mecanico" ? "/mecanico" : user.role === "viewer" ? "/portal" : "/crm/dashboard"}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white text-sm font-semibold rounded-full transition-all"
-              >
-                <Bike size={14} />
-                {user.role === "mecanico" ? "Mi App" : user.role === "viewer" ? t("nav_portal") : t("nav_crm")}
-              </Link>
+              <>
+                {/* Admin/Operador/Manager: show both Portal and CRM */}
+                {user.role !== "viewer" && user.role !== "mecanico" && (
+                  <Link
+                    href="/portal"
+                    className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                      scrolled || menuOpen
+                        ? isDark
+                          ? "border-white/15 text-slate-300 hover:border-[var(--color-spm-red)] hover:text-[var(--color-spm-red)]"
+                          : "border-gray-200 text-slate-600 hover:border-[var(--color-spm-red)] hover:text-[var(--color-spm-red)]"
+                        : "border-white/25 text-white/80 hover:border-white hover:text-white"
+                    }`}
+                  >
+                    {t("nav_portal")}
+                  </Link>
+                )}
+                <Link
+                  href={user.role === "mecanico" ? "/mecanico" : user.role === "viewer" ? "/portal" : "/crm/dashboard"}
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white text-sm font-semibold rounded-full transition-all"
+                >
+                  <Bike size={14} />
+                  {user.role === "mecanico" ? "Mi App" : user.role === "viewer" ? t("nav_portal") : t("nav_crm")}
+                </Link>
+              </>
             ) : (
               <Link
                 href="/login"
@@ -176,15 +193,28 @@ export default function Navbar() {
                 {link.label}
               </a>
             ))}
-            <div className="mt-3 pt-3 border-t border-white/10">
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
               {user ? (
-                <Link
-                  href="/portal"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-spm-red)] text-white text-sm font-semibold rounded-xl"
-                >
-                  {t("nav_portal")}
-                </Link>
+                <>
+                  {user.role !== "viewer" && user.role !== "mecanico" && (
+                    <Link
+                      href="/portal"
+                      onClick={() => setMenuOpen(false)}
+                      className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                        isDark ? "border-white/15 text-slate-300" : "border-gray-200 text-slate-700"
+                      }`}
+                    >
+                      {t("nav_portal")}
+                    </Link>
+                  )}
+                  <Link
+                    href={user.role === "mecanico" ? "/mecanico" : user.role === "viewer" ? "/portal" : "/crm/dashboard"}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-spm-red)] text-white text-sm font-semibold rounded-xl"
+                  >
+                    {user.role === "mecanico" ? "Mi App" : user.role === "viewer" ? t("nav_portal") : t("nav_crm")}
+                  </Link>
+                </>
               ) : (
                 <Link
                   href="/login"
