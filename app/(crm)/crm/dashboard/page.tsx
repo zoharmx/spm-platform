@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const { isDark, toggleTheme } = useTheme();
   const { t, lang, toggleLang } = useLanguage();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export default function DashboardPage() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const isActive = typeof window !== "undefined" && window.location.pathname === href;
+            const isActive = pathname === href;
             return (
               <Link
                 key={href}

@@ -47,3 +47,5 @@ next-env.d.ts
 # Firebase credentials
 *-service-account*.json
 *-credentials*.json
+
+.vercel

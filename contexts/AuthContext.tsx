@@ -33,6 +33,34 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * Creates a server-side HttpOnly session cookie via the /api/auth/session endpoint.
+ * This is called after every successful Firebase authentication.
+ */
+async function syncSessionCookie(fbUser: FirebaseUser): Promise<void> {
+  try {
+    const idToken = await fbUser.getIdToken();
+    await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+  } catch (err) {
+    console.error("Failed to sync session cookie:", err);
+  }
+}
+
+/**
+ * Clears the server-side session cookie via the /api/auth/session endpoint.
+ */
+async function clearSessionCookie(): Promise<void> {
+  try {
+    await fetch("/api/auth/session", { method: "DELETE" });
+  } catch (err) {
+    console.error("Failed to clear session cookie:", err);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SPMUser | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -43,6 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        // Sync HttpOnly session cookie on every auth state change
+        await syncSessionCookie(fbUser);
         const spmUser = await fetchOrCreateUser(fbUser);
         setUser(spmUser);
       } else {
@@ -88,17 +118,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string) {
     const auth = getFirebaseAuth();
     await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged will handle syncSessionCookie automatically
   }
 
   async function signInWithGoogle() {
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
+    // onAuthStateChanged will handle syncSessionCookie automatically
   }
 
   async function signOut() {
     const auth = getFirebaseAuth();
     await firebaseSignOut(auth);
+    // Clear the HttpOnly session cookie server-side
+    await clearSessionCookie();
     setUser(null);
     setFirebaseUser(null);
   }

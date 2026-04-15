@@ -1,5 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
+
+// 20 requests per minute per IP
+const rateLimiter = createRateLimiter({ limit: 20, windowMs: 60_000 });
 
 const SYSTEM_PROMPT = `Eres el asistente virtual de SanPedroMotoCare, un servicio de mecánicos a domicilio en San Pedro Garza García, Monterrey, México.
 
@@ -23,6 +27,23 @@ Sé amable, profesional y conciso (máximo 3 párrafos por respuesta).
 Si no sabes algo específico, invita al cliente a contactar vía WhatsApp o llenar el formulario de cotización.`;
 
 export async function POST(req: NextRequest) {
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  const ip = getClientIp(req);
+  const rl = rateLimiter(ip);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rl.retryAfter),
+          "X-RateLimit-Limit": "20",
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    );
+  }
+
   try {
     const { message, history } = await req.json();
 
@@ -30,7 +51,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid message" }, { status: 400 });
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    // GEMINI_API_KEY is server-only (no NEXT_PUBLIC_ prefix) to prevent exposure to the browser
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: "Gemini API not configured" },

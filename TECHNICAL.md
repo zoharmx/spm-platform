@@ -1,6 +1,6 @@
 # Documentación Técnica — SanPedroMotoCare Platform
 
-**Versión:** 1.0.0  
+**Versión:** 1.1.0  
 **Fecha:** Abril 2026  
 **Producción:** https://spm-platform.vercel.app  
 **Repositorio:** https://github.com/zoharmx/spm-platform
@@ -88,11 +88,12 @@ spm-platform/
 │   │       ├── reportes/
 │   │       └── configuracion/
 │   ├── api/
-│   │   ├── chat/route.ts        POST — Gemini chatbot
-│   │   ├── quotes/route.ts      POST — Crear lead + ticket
+│   │   ├── auth/session/route.ts  POST/DELETE — sesión HttpOnly cookie
+│   │   ├── chat/route.ts          POST — Gemini chatbot
+│   │   ├── quotes/route.ts        POST — Crear lead + ticket
 │   │   └── tracking/
-│   │       └── [ticketId]/      GET — Estado público de ticket
-│   ├── layout.tsx               Root layout + providers
+│   │       └── [ticketId]/        GET — Estado público de ticket
+│   ├── layout.tsx               Root layout + providers + FOUC prevention
 │   └── globals.css              Design system (Tailwind v4)
 │
 ├── components/
@@ -107,18 +108,19 @@ spm-platform/
 │   │   └── PWAInstallBanner.tsx Banner de instalación PWA
 │   ├── chatbot/
 │   │   └── ChatWidget.tsx       Widget flotante Gemini
-│   ├── crm/                     Componentes del CRM (en desarrollo)
-│   ├── portal/                  Componentes del portal (en desarrollo)
+│   ├── crm/                     Componentes del CRM
+│   ├── portal/                  Componentes del portal
 │   └── ui/                      Componentes genéricos reutilizables
 │
 ├── contexts/
 │   ├── AuthContext.tsx          Firebase Auth + RBAC
-│   ├── ThemeContext.tsx         Dark/light mode
+│   ├── ThemeContext.tsx         Dark/light mode (dark por defecto)
 │   └── LanguageContext.tsx      i18n ES/EN (285+ strings)
 │
 ├── lib/
 │   ├── firebase.ts              Client SDK singleton
-│   ├── firebase-admin.ts        Admin SDK lazy init
+│   ├── firebase-admin.ts        Admin SDK lazy init (server-side only)
+│   ├── rate-limit.ts            In-memory sliding window rate limiter
 │   └── firestore/               CRUD helpers por colección
 │
 ├── types/
@@ -126,13 +128,13 @@ spm-platform/
 │
 ├── public/
 │   ├── images/                  Assets de marca
-│   ├── videos/hero-bg.mp4       Video hero section
+│   ├── videos/hero-bg.mp4       Video hero (optimizado, 2.6MB para móvil)
 │   ├── icons/                   PWA icons
 │   ├── favicon.png              Logo SPM como favicon
 │   └── manifest.json            PWA Web App Manifest
 │
-├── proxy.ts                     Route protection (Next.js 16)
-├── next.config.ts               Configuración de Next.js
+├── middleware.ts                Route protection (Next.js 16)
+├── next.config.ts               Configuración + CSP headers de seguridad
 ├── .env.example                 Plantilla de variables de entorno
 └── package.json
 ```
@@ -162,6 +164,10 @@ Usuario → /login
                     └── [No existe] → Crea con role: "viewer", devuelve SPMUser
                                 │
                                 ▼
+                        POST /api/auth/session
+                        (Firebase Admin crea HttpOnly cookie __session)
+                                │
+                                ▼
                         Redirect según rol:
                         - mecanico  → /mecanico
                         - viewer    → /portal
@@ -187,7 +193,7 @@ function hasRole(minimum: UserRole): boolean {
 
 ### Route protection
 
-`proxy.ts` (Next.js 16) revisa la cookie `__session` de Firebase para redirigir:
+`middleware.ts` (Next.js 16) revisa la cookie `__session` de Firebase para redirigir:
 - Rutas protegidas sin sesión → `/login?from=<ruta>`
 - Usuarios autenticados en `/login` → `/portal`
 
@@ -293,33 +299,42 @@ interface Mechanic {
 }
 ```
 
+### Colección `_counters`
+
+```typescript
+// doc: service_tickets
+{ count: number }   // Contador atómico para generar SPM-XXXX via Transaction
+```
+
 ---
 
 ## 6. API Routes
+
+### POST /api/auth/session
+
+Recibe el `idToken` de Firebase del cliente, lo verifica con Firebase Admin SDK y crea una cookie HttpOnly `__session` de 5 días.
+
+**DELETE /api/auth/session** — Limpia la cookie en sign-out.
 
 ### POST /api/quotes
 
 Recibe datos del formulario de cotización, crea un documento en `leads` y genera automáticamente un `service_ticket` con status `lead-recibido`.
 
-**Autenticación:** Ninguna (pública).
+**Autenticación:** Ninguna (pública).  
+**Rate limit:** 5 requests/minuto por IP.  
+**Validación:** Sanitización y truncado de todos los campos. Solo campos permitidos explícitamente (no spread del body).
 
-**Validación:** Campos requeridos: `name`, `phone`, `address`, `serviceType`, `description`.
-
-**ID de ticket:** Se genera contando los tickets existentes + 1, formateado como `SPM-XXXX`.
-
-```
-Request → Firestore
-    ├── leads/{newId}           ← datos crudos del formulario
-    └── service_tickets/{newId} ← ticket SPM-XXXX con status lead-recibido
-```
+**ID de ticket:** Se genera con un Firestore Transaction atómico en la colección `_counters`, formateado como `SPM-XXXX`.
 
 ### GET /api/tracking/[ticketId]
 
 Consulta pública. Busca en `service_tickets` por el campo `ticketId` (no por doc ID).
 
+**Rate limit:** 30 requests/minuto por IP.
+
 **Campos que se exponen públicamente:**
 - `ticketId`, `status`, `clientName`, `serviceType`
-- `serviceAddress` (solo colonia y ciudad, no calle completa)
+- `serviceAddress` (calle, colonia y ciudad)
 - `estimatedCost`
 - `mechanicName` (siempre)
 - `mechanicPhone` — **solo si status es `en-camino` o `en-servicio`**
@@ -328,16 +343,9 @@ Consulta pública. Busca en `service_tickets` por el campo `ticketId` (no por do
 
 Proxy hacia Google Gemini con un system prompt especializado en SPM.
 
-**Modelo:** `gemini-2.0-flash-exp`
-
+**Rate limit:** 20 requests/minuto por IP.  
+**Modelo:** `gemini-2.0-flash-exp`  
 **Context window:** Se envían los últimos 10 mensajes del historial.
-
-**System prompt incluye:**
-- Servicios disponibles y precios aproximados
-- Zonas de cobertura
-- Horarios de atención
-- Proceso de cotización
-- Instrucciones de idioma (responder igual que el usuario)
 
 ---
 
@@ -355,17 +363,24 @@ A diferencia de versiones anteriores, Tailwind v4 no usa `tailwind.config.ts`. L
   --color-spm-orange: #F97316;
   --font-display: "Poppins", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
-  --animate-fade-in-up: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 ```
 
-### Dark mode
+### Dark mode (default)
 
-Se implementa con la clase `.dark` en el `<html>`. El tema se detecta de:
-1. `localStorage.getItem("spm-theme")`
-2. `prefers-color-scheme: dark` del sistema operativo
+Se implementa con la clase `.dark` en el `<html>`. El tema oscuro es el **default absoluto de la plataforma**:
 
-Para evitar flash of unstyled content (FOUC), hay un inline script en el `<head>` que aplica la clase antes de que React hidrate.
+1. Si el usuario no tiene preferencia guardada → **dark**
+2. Si el usuario eligió explícitamente `light` → light
+3. Script inline en `<head>` previene FOUC antes de la hidratación de React
+
+```javascript
+// layout.tsx — anti-FOUC
+var t = localStorage.getItem('spm-theme');
+if (t !== 'light') {
+  document.documentElement.classList.add('dark');
+}
+```
 
 ### Variables CSS semánticas
 
@@ -424,12 +439,7 @@ const { t, lang, toggleLang } = useLanguage();
 
 ### Install Banner
 
-`PWAInstallBanner.tsx` captura el evento `beforeinstallprompt` del navegador, lo cancela (para no mostrar el prompt nativo de inmediato) y después de 3 segundos muestra un banner elegante con:
-
-- Logo SPM
-- Texto: "Instala SanPedroMotoCare — Acceso rápido, funciona sin internet y recibe notificaciones"
-- Botón: "Agregar a inicio" → llama a `deferredPrompt.prompt()`
-- La preferencia "dismissar" se guarda en `localStorage` para no volver a mostrarlo
+`PWAInstallBanner.tsx` captura el evento `beforeinstallprompt`, lo cancela y después de 3 segundos muestra un banner elegante. La preferencia "dismiss" se guarda en `localStorage`.
 
 ---
 
@@ -440,25 +450,19 @@ const { t, lang, toggleLang } = useLanguage();
 ```
 Cliente (ChatWidget.tsx)
     │
-    ├── Mantiene historial de mensajes en estado local (useState)
+    ├── Mantiene historial en estado local (useState)
     │
     └── POST /api/chat  ← mensaje + últimos 10 del historial
                 │
                 └── Google Generative AI SDK
-                        │
-                        └── gemini-2.0-flash-exp
-                                │
-                                └── system prompt SPM
-                                        │
-                                        └── Respuesta → cliente
+                        └── gemini-2.0-flash-exp + system prompt SPM
+                                └── Respuesta → cliente
 ```
 
 ### System Prompt (resumen)
 
-El sistema prompt instruye al modelo a:
-- Identificar el tipo de servicio que necesita el cliente
-- Dar precios aproximados (con disclaimer de que son estimaciones)
-- Informar sobre cobertura (San Pedro, MTY, Guadalupe, Apodaca, etc.)
+- Servicios disponibles y precios aproximados
+- Zonas de cobertura (San Pedro, MTY, Guadalupe, Apodaca, etc.)
 - Horarios: Lun–Dom 7am–9pm, urgencias 24/7
 - Tiempo de respuesta: 45 minutos promedio
 - Formas de pago: efectivo, tarjeta, transferencia
@@ -484,43 +488,57 @@ Desarrollador
 
 ### Variables de entorno en Vercel
 
-Todas las variables están configuradas como `Encrypted` en el scope `Production`. Para agregar nuevas:
+Todas las variables están configuradas como `Encrypted` en el scope `Production`:
 
 ```bash
 vercel env add NUEVA_VARIABLE production
-vercel env ls production   # Verificar
-vercel --prod              # Redeploy para que las tome
+vercel env ls production
+vercel --prod
 ```
 
 ### Rollback
 
 ```bash
-vercel rollback            # Vuelve al deploy anterior
-vercel ls                  # Lista todos los deploys
+vercel rollback    # Vuelve al deploy anterior
+vercel ls          # Lista todos los deploys
 ```
 
 ---
 
 ## 12. Seguridad
 
-### Qué está protegido
+### Estado actual — implementado y activo
 
 | Recurso | Protección |
 |---------|-----------|
 | Variables de entorno | Encriptadas en Vercel, nunca en código |
 | Firebase Admin SDK | Server-side únicamente (API Routes) |
-| Rutas CRM | `proxy.ts` + validación de rol en cliente |
-| API `/api/quotes` | Rate limit por IP (pendiente: Vercel WAF) |
-| Firestore | Reglas de seguridad en `firestore.rules` |
-| Tracking API | Solo expone datos públicos, teléfono del mecánico con restricción de estado |
+| Rutas CRM | `middleware.ts` + validación de rol en AuthContext |
+| Session cookie | HttpOnly, Secure, SameSite=Lax, 5 días, Firebase Admin |
+| API `/api/quotes` | Rate limit 5 req/min por IP + validación + sanitización |
+| API `/api/chat` | Rate limit 20 req/min por IP |
+| API `/api/tracking` | Rate limit 30 req/min por IP |
+| Tracking API | Solo expone datos públicos, teléfono del mecánico restringido por estado |
+| Firestore | Reglas de seguridad activas |
+| CSP | Headers completos: script-src, style-src, img-src, connect-src, frame-src |
+| X-Frame-Options | DENY |
+| X-Content-Type-Options | nosniff |
+| X-XSS-Protection | 1; mode=block |
+| Referrer-Policy | strict-origin-when-cross-origin |
+| Permissions-Policy | camera=(), microphone=(), geolocation=(), payment=() |
+| HSTS | max-age=63072000; includeSubDomains; preload (solo producción) |
+| Inputs | Truncado + whitelist de campos (sin object spread del body) |
 
-### Pendientes de seguridad
+### Google Sign-In — CSP
 
-- [ ] Rate limiting en `/api/chat` y `/api/quotes` (protección contra spam)
+El `frame-src` incluye `https://*.firebaseapp.com` para permitir el popup de Firebase Auth OAuth. El `connect-src` incluye los dominios de Firebase necesarios para la autenticación.
+
+### Pendientes (mejoras futuras)
+
 - [ ] CAPTCHA en el formulario de cotización (hCaptcha o Cloudflare Turnstile)
-- [ ] Validación de webhook con `WEBHOOK_SECRET` en integraciones externas
-- [ ] Content Security Policy (CSP) headers en `next.config.ts`
 - [ ] Firebase App Check para prevenir uso no autorizado del SDK
+- [ ] Rate limiting distribuido con Redis/Upstash para entornos multi-instancia
+- [ ] Validación de webhook con `WEBHOOK_SECRET` en integraciones externas
 
 ---
 
@@ -580,4 +598,4 @@ vercel ls                  # Lista todos los deploys
 
 ---
 
-*Documentación generada el 15 de abril de 2026. Versión 1.0.0*
+*Documentación actualizada el 15 de abril de 2026. Versión 1.1.0*

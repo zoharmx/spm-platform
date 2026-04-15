@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  Phone, MessageCircle, Video, PhoneCall, PhoneOff,
+  Phone, MessageCircle, PhoneCall, PhoneOff,
   Mic, MicOff, Headphones, Users, Clock, ArrowLeft, Loader2,
 } from "lucide-react";
 

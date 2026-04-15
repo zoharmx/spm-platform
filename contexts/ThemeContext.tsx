@@ -18,8 +18,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("spm-theme") as Theme | null;
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial = saved ?? (prefersDark ? "dark" : "light");
+    // Dark is the platform default — only switch to light if the user explicitly chose it
+    const initial = saved ?? "dark";
     setTheme(initial);
     applyTheme(initial);
     setMounted(true);

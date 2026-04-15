@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -18,6 +18,7 @@ export default function PortalPage() {
   const { t } = useLanguage();
   const router = useRouter();
   const [ticketSearch, setTicketSearch] = useState("");
+  const trackingFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -111,7 +112,15 @@ export default function PortalPage() {
           <h2 className={`font-semibold text-base mb-3 ${isDark ? "text-white" : "text-slate-900"}`}>
             Rastrear servicio
           </h2>
-          <div className="flex gap-3">
+          <form
+            ref={trackingFormRef}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const clean = ticketSearch.trim().toUpperCase();
+              if (clean) router.push(`/tracking?ticket=${encodeURIComponent(clean)}`);
+            }}
+            className="flex gap-3"
+          >
             <div className="relative flex-1">
               <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? "text-slate-500" : "text-gray-400"}`} />
               <input
@@ -125,13 +134,13 @@ export default function PortalPage() {
                 }`}
               />
             </div>
-            <Link
-              href={`/#tracking`}
+            <button
+              type="submit"
               className="px-5 py-2.5 bg-[var(--color-spm-red)] text-white text-sm font-semibold rounded-xl hover:bg-[var(--color-spm-red-dark)] transition-all"
             >
               Rastrear
-            </Link>
-          </div>
+            </button>
+          </form>
         </div>
 
         {/* Recent Services Placeholder */}

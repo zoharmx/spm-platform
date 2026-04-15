@@ -12,6 +12,7 @@ import {
   Loader2,
   Minimize2,
 } from "lucide-react";
+
 import type { ChatMessage } from "@/types";
 import Image from "next/image";
 
@@ -47,13 +48,14 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen]);
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return;
+  async function sendMessage(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
+    if (!text || loading) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: text,
       timestamp: new Date(),
     };
 
@@ -66,7 +68,7 @@ export default function ChatWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: userMsg.content,
+          message: text,
           history: messages.slice(-8).map((m) => ({
             role: m.role,
             content: m.content,
@@ -217,10 +219,7 @@ export default function ChatWidget() {
               {quickReplies.map((qr) => (
                 <button
                   key={qr}
-                  onClick={() => {
-                    setInput(qr);
-                    setTimeout(() => sendMessage(), 0);
-                  }}
+                  onClick={() => sendMessage(qr)}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-all hover:border-[var(--color-spm-red)] hover:text-[var(--color-spm-red)] ${
                     isDark
                       ? "border-white/10 text-slate-400"
@@ -251,7 +250,7 @@ export default function ChatWidget() {
                 }`}
               />
               <button
-                onClick={sendMessage}
+                onClick={() => sendMessage()}
                 disabled={!input.trim() || loading}
                 className="w-10 h-10 bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white rounded-xl flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50 disabled:scale-100"
               >

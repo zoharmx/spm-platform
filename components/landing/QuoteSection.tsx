@@ -123,7 +123,7 @@ export default function QuoteSection() {
                 ¿Prefieres contactarnos directo?
               </p>
               <a
-                href="https://wa.me/528110000000?text=Hola,%20necesito%20un%20mecánico%20para%20mi%20moto"
+                href="https://wa.me/528100000000?text=Hola,%20necesito%20un%20mec%C3%A1nico%20para%20mi%20moto"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl transition-all"
@@ -216,10 +216,10 @@ export default function QuoteSection() {
                     <label className={labelClass}>{t("quote_moto_year")}</label>
                     <input
                       {...register("motoYear")}
-                      placeholder="2022"
+                      placeholder={String(new Date().getFullYear())}
                       type="number"
                       min="1990"
-                      max="2025"
+                      max={String(new Date().getFullYear() + 1)}
                       className={inputClass}
                     />
                   </div>

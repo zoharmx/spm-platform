@@ -46,8 +46,10 @@ export default function HeroSection() {
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
+          poster="/images/SPM1.png"
           onCanPlay={() => setVideoLoaded(true)}
+          style={{ objectPosition: "center center" }}
         >
           <source src="/videos/hero-bg.mp4" type="video/mp4" />
         </video>

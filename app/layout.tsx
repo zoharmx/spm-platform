@@ -105,10 +105,12 @@ export default function RootLayout({
               (function() {
                 try {
                   var t = localStorage.getItem('spm-theme');
-                  if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  if (t !== 'light') {
                     document.documentElement.classList.add('dark');
                   }
-                } catch(e) {}
+                } catch(e) {
+                  document.documentElement.classList.add('dark');
+                }
               })();
             `,
           }}
