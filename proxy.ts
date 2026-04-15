@@ -9,9 +9,12 @@ const AUTH_ROUTES = ["/login"];
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check for session cookie (Firebase sets __session)
+  // Primary: HttpOnly session cookie created by Firebase Admin SDK (/api/auth/session)
+  // Fallback: __auth presence cookie set client-side by AuthContext after Firebase auth
+  // The middleware is a UX guard — actual security lives in each page's useAuth() check
   const sessionCookie = request.cookies.get("__session");
-  const isAuthenticated = !!sessionCookie;
+  const authPresence = request.cookies.get("__auth");
+  const isAuthenticated = !!sessionCookie || !!authPresence;
 
   // Redirect authenticated users away from login
   if (AUTH_ROUTES.some((r) => pathname.startsWith(r)) && isAuthenticated) {

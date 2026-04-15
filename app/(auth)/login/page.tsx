@@ -48,8 +48,23 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await signInWithGoogle();
-    } catch {
-      setError("Error al iniciar sesión con Google.");
+    } catch (err: unknown) {
+      // Show the actual Firebase error code to simplify diagnosis
+      const code = (err as { code?: string })?.code ?? "";
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // User closed the popup — not an error
+        setError("");
+      } else if (code === "auth/unauthorized-domain") {
+        setError(
+          "Dominio no autorizado en Firebase Console. Agrega este dominio en Authentication → Settings → Authorized domains."
+        );
+      } else if (code === "auth/popup-blocked") {
+        setError("El navegador bloqueó el popup. Permite popups para este sitio e intenta de nuevo.");
+      } else if (code) {
+        setError(`Error de autenticación: ${code}`);
+      } else {
+        setError("Error al iniciar sesión con Google. Intenta de nuevo.");
+      }
     } finally {
       setSubmitting(false);
     }

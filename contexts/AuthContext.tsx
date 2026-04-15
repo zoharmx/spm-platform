@@ -34,30 +34,49 @@ const ROLE_WEIGHTS: Record<UserRole, number> = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Creates a server-side HttpOnly session cookie via the /api/auth/session endpoint.
- * This is called after every successful Firebase authentication.
+ * Sets a client-accessible cookie that the middleware uses as an auth presence
+ * indicator. This is a fallback for when Firebase Admin SDK session cookie
+ * creation fails (e.g. FIREBASE_SERVICE_ACCOUNT_KEY not configured in Vercel).
+ *
+ * Security: the real auth checks happen in each protected page via useAuth().
+ * The middleware only uses this cookie for the UX redirect (avoid flashing
+ * protected pages to unauthenticated users). It is NOT a security boundary.
+ */
+function setAuthPresenceCookie(uid: string) {
+  // Expires in 24 h — matches Firebase ID token refresh cycle
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+  document.cookie = `__auth=${encodeURIComponent(uid)}; path=/; expires=${expires}; SameSite=Lax`;
+}
+
+function clearAuthPresenceCookie() {
+  document.cookie = "__auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+}
+
+/**
+ * Attempts to create a server-side HttpOnly session cookie via Firebase Admin.
+ * Falls back silently — the app works via __auth presence cookie if this fails.
  */
 async function syncSessionCookie(fbUser: FirebaseUser): Promise<void> {
   try {
     const idToken = await fbUser.getIdToken();
-    await fetch("/api/auth/session", {
+    const res = await fetch("/api/auth/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken }),
     });
+    if (!res.ok) {
+      console.warn(`[Auth] Session cookie endpoint returned ${res.status} — using fallback cookie`);
+    }
   } catch (err) {
-    console.error("Failed to sync session cookie:", err);
+    console.warn("[Auth] Session cookie sync failed — using fallback cookie:", err);
   }
 }
 
-/**
- * Clears the server-side session cookie via the /api/auth/session endpoint.
- */
 async function clearSessionCookie(): Promise<void> {
   try {
     await fetch("/api/auth/session", { method: "DELETE" });
-  } catch (err) {
-    console.error("Failed to clear session cookie:", err);
+  } catch {
+    // Best-effort cleanup
   }
 }
 
@@ -71,11 +90,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // Sync HttpOnly session cookie on every auth state change
+        // Set the presence cookie FIRST so the middleware sees it immediately
+        setAuthPresenceCookie(fbUser.uid);
+        // Try to upgrade to HttpOnly Admin session cookie (best-effort)
         await syncSessionCookie(fbUser);
         const spmUser = await fetchOrCreateUser(fbUser);
         setUser(spmUser);
       } else {
+        clearAuthPresenceCookie();
         setUser(null);
       }
       setLoading(false);
@@ -90,12 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (snap.exists()) {
       const data = snap.data();
-      // Update last login
       await setDoc(ref, { lastLogin: serverTimestamp() }, { merge: true });
       return { id: snap.id, ...data } as SPMUser;
     }
 
-    // Create new user record
     const newUser: Omit<SPMUser, "id"> = {
       uid: fbUser.uid,
       email: fbUser.email ?? "",
@@ -118,20 +138,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(email: string, password: string) {
     const auth = getFirebaseAuth();
     await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged will handle syncSessionCookie automatically
   }
 
   async function signInWithGoogle() {
     const auth = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
     await signInWithPopup(auth, provider);
-    // onAuthStateChanged will handle syncSessionCookie automatically
   }
 
   async function signOut() {
     const auth = getFirebaseAuth();
     await firebaseSignOut(auth);
-    // Clear the HttpOnly session cookie server-side
+    clearAuthPresenceCookie();
     await clearSessionCookie();
     setUser(null);
     setFirebaseUser(null);
