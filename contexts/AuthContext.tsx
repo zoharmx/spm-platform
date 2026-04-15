@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
             role: "viewer",
             isActive: true,
-            photoURL: fbUser.photoURL ?? undefined,
+            ...(fbUser.photoURL ? { photoURL: fbUser.photoURL } : {}),
           } as import("@/types").SPMUser);
         }
       } else {
@@ -144,21 +144,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { id: snap.id, ...data } as SPMUser;
     }
 
+    // Firestore rejects `undefined` — use null for optional fields
     const newUser: Omit<SPMUser, "id"> = {
       uid: fbUser.uid,
       email: fbUser.email ?? "",
       displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
       role: "viewer",
-      photoURL: fbUser.photoURL ?? undefined,
+      photoURL: fbUser.photoURL ?? null,
       isActive: true,
     };
 
-    await setDoc(ref, {
-      ...newUser,
+    // Strip undefined/null optional fields before writing to Firestore
+    const docData: Record<string, unknown> = {
+      uid: newUser.uid,
+      email: newUser.email,
+      displayName: newUser.displayName,
+      role: newUser.role,
+      isActive: newUser.isActive,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastLogin: serverTimestamp(),
-    });
+    };
+    if (newUser.photoURL) docData.photoURL = newUser.photoURL;
+
+    await setDoc(ref, docData);
 
     return { id: fbUser.uid, ...newUser };
   }
