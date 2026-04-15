@@ -96,9 +96,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setFirebaseUser(fbUser);
       if (fbUser) {
         setAuthPresenceCookie(fbUser.uid);
-        await syncSessionCookie(fbUser);
-        const spmUser = await fetchOrCreateUser(fbUser);
-        setUser(spmUser);
+        // Best-effort — failures must never block the auth flow
+        try {
+          await syncSessionCookie(fbUser);
+        } catch {
+          // continue — __auth fallback cookie already set above
+        }
+        try {
+          const spmUser = await fetchOrCreateUser(fbUser);
+          setUser(spmUser);
+        } catch (err) {
+          console.error("[Auth] fetchOrCreateUser failed:", err);
+          // Still mark user as authenticated with minimal info so the
+          // redirect to portal happens — portal will handle missing profile
+          setUser({
+            id: fbUser.uid,
+            uid: fbUser.uid,
+            email: fbUser.email ?? "",
+            displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
+            role: "viewer",
+            isActive: true,
+            photoURL: fbUser.photoURL ?? undefined,
+          } as import("@/types").SPMUser);
+        }
       } else {
         clearAuthPresenceCookie();
         setUser(null);
