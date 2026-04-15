@@ -76,23 +76,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const auth = getFirebaseAuth();
+    let unsubscribe: (() => void) | null = null;
 
-    // Only process the redirect result when WE initiated the redirect.
-    // Calling getRedirectResult unconditionally surfaces stale errors stored
-    // in Firebase's IndexedDB from previous failed attempts, even after the
-    // domain has been authorized — creating a ghost error loop.
-    const redirectPending = sessionStorage.getItem("spm_auth_redirect") === "1";
-    if (redirectPending) {
-      sessionStorage.removeItem("spm_auth_redirect");
-      getRedirectResult(auth).catch((err: { code?: string }) => {
-        const code = err?.code ?? "auth/unknown";
-        if (code !== "auth/no-auth-event") {
-          setRedirectError(code);
-        }
-      });
-    }
+    // authStateReady() waits until Firebase has fully determined the initial
+    // auth state — including processing any pending signInWithRedirect result
+    // stored in IndexedDB. Without this, onAuthStateChanged fires with null
+    // first, protected pages see !user and redirect to /login, creating a loop.
+    auth.authStateReady().then(() => {
+      // Only check redirect errors when we initiated the redirect
+      const redirectPending = sessionStorage.getItem("spm_auth_redirect") === "1";
+      if (redirectPending) {
+        sessionStorage.removeItem("spm_auth_redirect");
+        getRedirectResult(auth).catch((err: { code?: string }) => {
+          const code = err?.code ?? "auth/unknown";
+          if (code !== "auth/no-auth-event") {
+            setRedirectError(code);
+          }
+        });
+      }
 
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
         setAuthPresenceCookie(fbUser.uid);
@@ -123,10 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearAuthPresenceCookie();
         setUser(null);
       }
-      setLoading(false);
+        setLoading(false);
+      });
     });
 
-    return unsubscribe;
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   async function fetchOrCreateUser(fbUser: FirebaseUser): Promise<SPMUser> {
