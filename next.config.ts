@@ -14,8 +14,8 @@ const cspDirectives = [
   "font-src 'self' https://fonts.gstatic.com",
   // Images: self + data URIs + Firebase Storage + Google avatars
   "img-src 'self' data: blob: https://storage.googleapis.com https://lh3.googleusercontent.com https://firebasestorage.googleapis.com",
-  // Connections: self + Firebase + Gemini + Google Auth
-  "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://generativelanguage.googleapis.com https://*.firebaseapp.com https://*.firebase.com",
+  // Connections: self + Firebase + Gemini + Google Auth + Google APIs (gen_204, gapi)
+  "connect-src 'self' https://*.googleapis.com https://apis.google.com https://accounts.google.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://generativelanguage.googleapis.com https://*.firebaseapp.com https://*.firebase.com",
   // Frames: Google accounts popup for OAuth + Firebase Auth domain
   "frame-src https://accounts.google.com https://*.firebaseapp.com https://*.firebase.com",
   // Everything else: block
