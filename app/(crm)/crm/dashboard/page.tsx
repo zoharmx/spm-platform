@@ -214,14 +214,14 @@ export default function DashboardPage() {
                 title: "Nuevo Ticket",
                 desc: "Registrar solicitud de servicio",
                 icon: <Ticket size={20} className="text-white" />,
-                href: "/crm/tickets/nuevo",
+                href: "/crm/tickets",
                 color: "from-[var(--color-spm-red)] to-rose-600",
               },
               {
                 title: "Nuevo Cliente",
                 desc: "Registrar cliente en el CRM",
                 icon: <Users size={20} className="text-white" />,
-                href: "/crm/clientes/nuevo",
+                href: "/crm/clientes",
                 color: "from-blue-600 to-blue-700",
               },
               {
