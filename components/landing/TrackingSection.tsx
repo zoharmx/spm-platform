@@ -49,11 +49,19 @@ export default function TrackingSection() {
     try {
       const clean = ticketInput.trim().toUpperCase();
       const res = await fetch(`/api/tracking/${encodeURIComponent(clean)}`);
-      if (!res.ok) throw new Error("not_found");
+      if (res.status === 404) throw new Error("not_found");
+      if (!res.ok) throw new Error("server_error");
       const data = await res.json();
       setResult(data);
-    } catch {
-      setError(t("tracking_not_found"));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "not_found";
+      setError(
+        msg === "server_error"
+          ? lang === "es"
+            ? "Error del servidor. Intenta de nuevo en unos segundos."
+            : "Server error. Please try again in a moment."
+          : t("tracking_not_found")
+      );
     } finally {
       setLoading(false);
     }

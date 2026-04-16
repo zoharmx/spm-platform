@@ -65,7 +65,9 @@ export async function GET(
       updatedAt: data.updatedAt?.toDate?.()?.toISOString(),
     });
   } catch (error) {
-    console.error("Tracking API error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    // Most common cause: FIREBASE_SERVICE_ACCOUNT_KEY not set or malformed in Vercel env vars
+    console.error("[Tracking] API error:", msg);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

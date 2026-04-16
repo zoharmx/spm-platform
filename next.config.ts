@@ -46,6 +46,13 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=()",
   },
+  // Required for Firebase Auth signInWithPopup: allows the popup window
+  // (accounts.google.com) to post back the auth result to the opener.
+  // Without this, Chrome blocks window.closed polling and cancellation detection.
+  {
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin-allow-popups",
+  },
   {
     key: "Content-Security-Policy",
     value: cspDirectives,
