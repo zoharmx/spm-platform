@@ -171,8 +171,10 @@ export interface ServiceTicket {
   id: string;
   ticketId: string; // SPM-XXXX
   status: ServiceTicketStatus;
-  clientId: string;
+  clientId?: string;
   clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
   motorcycleId?: string;
   serviceType: ServiceType;
   serviceDescription: string;
@@ -180,6 +182,7 @@ export interface ServiceTicket {
   workDone?: string;
   mechanicId?: string;
   mechanicName?: string;
+  mechanicPhone?: string;
   serviceAddress: Address;
   estimatedCost?: number;
   anticipo?: number;
@@ -190,6 +193,12 @@ export interface ServiceTicket {
   rating?: number;
   photosBefore?: string[];
   photosAfter?: string[];
+  // Payments
+  paymentLinkUrl?: string;      // Stripe Checkout Session URL
+  stripeSessionId?: string;     // Stripe session ID for webhook matching
+  paidAt?: Timestamp;
+  // Notifications
+  lastWhatsAppSent?: Timestamp; // Prevent duplicate WA messages
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   completedAt?: Timestamp;

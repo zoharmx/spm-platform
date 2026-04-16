@@ -47,10 +47,10 @@ export const metadata: Metadata = {
       "Mecánicos certificados a domicilio en San Pedro Garza García. Tu moto lista sin moverte.",
     images: [
       {
-        url: "/images/logo.png",
+        url: "/images/og-image.png",
         width: 1200,
         height: 630,
-        alt: "SanPedroMotoCare Logo",
+        alt: "SanPedroMotoCare — Mecánico Certificado a Domicilio",
       },
     ],
   },
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SanPedroMotoCare — Mecánico a Domicilio",
     description: "Mecánicos certificados a domicilio en San Pedro Garza García.",
-    images: ["/images/logo.png"],
+    images: ["/images/og-image.png"],
   },
   robots: {
     index: true,

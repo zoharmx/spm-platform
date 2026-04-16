@@ -55,12 +55,12 @@ export default function Footer() {
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-3 mb-4">
-              <div className="relative w-10 h-10">
-                <Image src="/images/logo.png" alt="SPM Logo" fill className="object-contain" />
+              <div className="relative w-14 h-14 flex-shrink-0">
+                <Image src="/images/logo.png" alt="SanPedroMotoCare Logo" fill className="object-contain" />
               </div>
-              <div>
-                <span className="text-white font-display font-bold">SanPedro</span>
-                <span className="text-[var(--color-spm-red)] font-display font-bold">MotoCare</span>
+              <div className="leading-tight">
+                <p className="text-white font-display font-bold text-base">SanPedroMotoCare</p>
+                <p className="text-slate-400 text-xs">Mecánico a Domicilio</p>
               </div>
             </div>
             <p className="text-slate-400 text-sm leading-relaxed mb-5">
@@ -129,14 +129,14 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* SPM1 Brand Image */}
+        {/* Brand logo centrado */}
         <div className="flex justify-center mb-10">
           <Image
-            src="/images/spm1.png"
+            src="/images/logo.png"
             alt="SanPedroMotoCare"
-            width={320}
-            height={80}
-            className="object-contain opacity-60 hover:opacity-100 transition-opacity"
+            width={160}
+            height={160}
+            className="object-contain opacity-50 hover:opacity-90 transition-opacity"
           />
         </div>
 

@@ -11,6 +11,7 @@ import {
   Bike, FileText, CreditCard, User, LogOut, Plus,
   Search, Clock, CheckCircle2, AlertCircle, Loader2, Home,
 } from "lucide-react";
+import NotificationPermission from "@/components/portal/NotificationPermission";
 
 export default function PortalPage() {
   const { user, signOut, loading } = useAuth();
@@ -87,6 +88,9 @@ export default function PortalPage() {
             Gestiona tus servicios, pagos y motocicletas
           </p>
         </div>
+
+        {/* FCM notification permission banner */}
+        <NotificationPermission />
 
         {/* Quick Nav Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -11,16 +11,28 @@ export default function HeroSection() {
   const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
   const { ref: statsRef, inView: statsInView } = useInView({ triggerOnce: true, threshold: 0.2 });
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (video) {
-      video.play().catch(() => {
-        // Autoplay blocked — show fallback
-      });
-    }
+    // Detect mobile to apply optimizations
+    const mq = window.matchMedia("(max-width: 768px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // On mobile: defer play slightly to avoid blocking LCP
+    if (isMobile) {
+      const id = setTimeout(() => video.play().catch(() => {}), 600);
+      return () => clearTimeout(id);
+    }
+    video.play().catch(() => {});
+  }, [isMobile]);
 
   const stats = [
     { value: 500, suffix: "+", label: t("hero_stat_services"), icon: "🏍️" },
@@ -39,28 +51,46 @@ export default function HeroSection() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Video Background */}
       <div className="absolute inset-0 z-0">
+        {/* Poster image shown instantly while video loads — critical for LCP */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {!videoLoaded && (
+          <img
+            src="/images/logo.png"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover opacity-0"
+          />
+        )}
+
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover transition-opacity duration-700 ${videoLoaded ? "opacity-100" : "opacity-0"}`}
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
+          // On mobile: preload only metadata to save bandwidth
+          preload={isMobile ? "none" : "metadata"}
           poster="/images/spm1.png"
           onCanPlay={() => setVideoLoaded(true)}
-          style={{ objectPosition: "center center" }}
+          onLoadedData={() => setVideoLoaded(true)}
+          style={{ objectPosition: "center 30%" }}
         >
           <source src="/videos/hero-bg.mp4" type="video/mp4" />
         </video>
 
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 hero-video-overlay" />
+        {/* Fallback background when video hasn't loaded yet */}
+        <div
+          className={`absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950/40 to-slate-900 transition-opacity duration-700 ${videoLoaded ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        />
+
+        {/* Gradient Overlay — slightly stronger on mobile for text readability */}
+        <div className={`absolute inset-0 hero-video-overlay ${isMobile ? "opacity-110" : ""}`} />
 
         {/* Animated gradient blobs */}
-        <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[var(--color-spm-red)]/10 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-[var(--color-spm-orange)]/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/8 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-blue-400/8 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
         </div>
       </div>
 

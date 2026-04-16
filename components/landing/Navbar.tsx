@@ -40,31 +40,30 @@ export default function Navbar() {
     >
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-[72px] lg:h-[86px]">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-[54px] h-[54px] lg:w-[72px] lg:h-[72px] flex-shrink-0">
+          {/* Logo — nuevo branding oficial */}
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="relative w-[48px] h-[48px] lg:w-[64px] lg:h-[64px] flex-shrink-0">
               <Image
                 src="/images/logo.png"
                 alt="SanPedroMotoCare"
                 fill
-                sizes="72px"
+                sizes="64px"
                 className="object-contain drop-shadow-lg"
                 priority
               />
             </div>
-            <div className="hidden sm:block">
+            {/* Texto solo visible en pantallas medianas+ */}
+            <div className="hidden md:block">
               <span
-                className={`font-display font-bold text-xl lg:text-2xl leading-tight ${
+                className={`font-display font-bold text-lg lg:text-xl leading-tight ${
                   scrolled || menuOpen
-                    ? isDark
-                      ? "text-white"
-                      : "text-slate-900"
+                    ? isDark ? "text-white" : "text-slate-900"
                     : "text-white"
                 }`}
               >
                 SanPedro
               </span>
-              <span className="font-display font-bold text-xl lg:text-2xl text-[var(--color-spm-red)] leading-tight">
+              <span className="font-display font-bold text-lg lg:text-xl text-[var(--color-spm-red)] leading-tight">
                 MotoCare
               </span>
             </div>

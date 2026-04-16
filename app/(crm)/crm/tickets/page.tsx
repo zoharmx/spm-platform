@@ -7,6 +7,51 @@ import { useTheme } from "@/contexts/ThemeContext";
 import {
   subscribeTickets, advanceTicketStatus, updateTicketFields, createTicketDirect,
 } from "@/lib/firestore/tickets";
+
+// ── Notification helpers ───────────────────────────────────────────────────
+async function notifyStatusChange(ticket: ServiceTicket, newStatus: ServiceTicketStatus, paymentLink?: string) {
+  if (!ticket.clientPhone) return;
+  try {
+    await fetch("/api/notifications/whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticketId:     ticket.ticketId,
+        clientPhone:  ticket.clientPhone,
+        clientName:   ticket.clientName ?? "Cliente",
+        status:       newStatus,
+        mechanicName: ticket.mechanicName,
+        paymentLink,
+      }),
+    });
+  } catch (err) {
+    console.warn("[CRM] WhatsApp notification failed (non-fatal):", err);
+  }
+}
+
+async function sendPaymentLink(ticket: ServiceTicket): Promise<string | null> {
+  if (!ticket.finalCost || !ticket.clientPhone) return null;
+  try {
+    const res  = await fetch("/api/payments/create-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ticketId:           ticket.ticketId,
+        clientName:         ticket.clientName ?? "Cliente",
+        clientPhone:        ticket.clientPhone,
+        serviceDescription: ticket.serviceDescription,
+        serviceType:        ticket.serviceType,
+        amountMXN:          ticket.finalCost,
+        sendWhatsApp:       true,
+      }),
+    });
+    const data = await res.json();
+    return data.url ?? null;
+  } catch (err) {
+    console.warn("[CRM] Payment link creation failed:", err);
+    return null;
+  }
+}
 import { subscribeMechanics } from "@/lib/firestore/mechanics";
 import type { ServiceTicket, ServiceTicketStatus, Mechanic } from "@/types";
 import {
@@ -176,12 +221,13 @@ function TicketDrawer({
   userId: string;
   onClose: () => void;
 }) {
-  const [note, setNote]         = useState("");
-  const [saving, setSaving]     = useState(false);
-  const [editCost, setEditCost] = useState(false);
-  const [costs, setCosts]       = useState({ estimated: "", final: "", anticipo: "" });
+  const [note, setNote]           = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [editCost, setEditCost]   = useState(false);
+  const [costs, setCosts]         = useState({ estimated: "", final: "", anticipo: "" });
   const [diagnosis, setDiagnosis] = useState("");
   const [selectedMechanic, setSelectedMechanic] = useState("");
+  const [sendingLink, setSendingLink] = useState(false);
 
   useEffect(() => {
     if (ticket) {
@@ -206,6 +252,20 @@ function TicketDrawer({
       await advanceTicketStatus(ticket!.id, nextStatus, note, userId);
       toast.success(`Estado → ${STATUS_LABELS[nextStatus]}`);
       setNote("");
+
+      // Auto-send WhatsApp notification
+      await notifyStatusChange(ticket!, nextStatus);
+
+      // If advancing to "completado" and finalCost exists, offer payment link
+      if (nextStatus === "completado" && ticket!.finalCost && ticket!.clientPhone) {
+        toast.loading("Generando link de pago…", { id: "payment" });
+        const url = await sendPaymentLink(ticket!);
+        if (url) {
+          toast.success("Link de pago enviado por WhatsApp ✅", { id: "payment" });
+        } else {
+          toast.dismiss("payment");
+        }
+      }
     } catch { toast.error("Error al actualizar estado"); }
     finally { setSaving(false); }
   }
@@ -215,8 +275,22 @@ function TicketDrawer({
     try {
       await advanceTicketStatus(ticket!.id, "cancelado", note || "Cancelado desde CRM", userId);
       toast.success("Ticket cancelado");
+      await notifyStatusChange(ticket!, "cancelado");
     } catch { toast.error("Error"); }
     finally { setSaving(false); }
+  }
+
+  async function handleSendPaymentLink() {
+    if (!ticket!.finalCost || !ticket!.clientPhone) {
+      toast.error("Configura el costo final antes de enviar el link de pago");
+      return;
+    }
+    setSendingLink(true);
+    try {
+      const url = await sendPaymentLink(ticket!);
+      if (url) toast.success("Link de pago enviado por WhatsApp ✅");
+      else toast.error("No se pudo generar el link de pago");
+    } finally { setSendingLink(false); }
   }
 
   async function handleSaveFields() {
@@ -368,6 +442,15 @@ function TicketDrawer({
             {saving && <Loader2 size={14} className="animate-spin" />}
             Guardar cambios
           </button>
+
+          {/* Payment link button — visible for completed/unpaid tickets with a final cost */}
+          {(ticket.status === "completado" || (ticket.status !== "pagado" && ticket.paymentLinkUrl)) && ticket.finalCost && (
+            <button onClick={handleSendPaymentLink} disabled={sendingLink}
+              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+              {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
+              {ticket.paymentLinkUrl ? "Reenviar link de pago" : "Generar y enviar link de pago"}
+            </button>
+          )}
 
           {/* Status advance */}
           {ticket.status !== "pagado" && ticket.status !== "cancelado" && (
