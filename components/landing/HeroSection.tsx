@@ -51,46 +51,60 @@ export default function HeroSection() {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Video Background */}
       <div className="absolute inset-0 z-0">
-        {/* Poster image shown instantly while video loads — critical for LCP */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {!videoLoaded && (
-          <img
-            src="/images/logo.png"
-            alt=""
-            aria-hidden
-            className="absolute inset-0 w-full h-full object-cover opacity-0"
-          />
-        )}
 
+        {/*
+         * Fallback gradient visible INSTANTLY before video loads.
+         * Matches the marino profundo of the new branding.
+         * Fades out smoothly when video is ready.
+         */}
+        <div
+          aria-hidden
+          className={`absolute inset-0 bg-gradient-to-br from-[#071428] via-[#0D1B3E] to-[#0F172A] transition-opacity duration-1000 ${
+            videoLoaded ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        />
+
+        {/*
+         * Video — "spm azul.mp4" (6.1 MB)
+         *
+         * Mobile optimizations:
+         *   preload="none"  → no bytes downloaded until play is triggered
+         *   poster          → logo shown immediately (LCP asset)
+         *   playsInline     → required for iOS autoplay
+         *   delayed play    → 600ms after mount to avoid blocking LCP
+         *
+         * Desktop:
+         *   preload="metadata"  → fetch just enough to get duration/dimensions
+         *   plays immediately after canplay fires
+         */}
         <video
           ref={videoRef}
-          className={`w-full h-full object-cover transition-opacity duration-700 ${videoLoaded ? "opacity-100" : "opacity-0"}`}
+          className={`w-full h-full object-cover transition-opacity duration-1000 ${
+            videoLoaded ? "opacity-100" : "opacity-0"
+          }`}
           autoPlay
           muted
           loop
           playsInline
-          // On mobile: preload only metadata to save bandwidth
           preload={isMobile ? "none" : "metadata"}
-          poster="/images/spm1.png"
+          poster="/images/logo.png"
           onCanPlay={() => setVideoLoaded(true)}
           onLoadedData={() => setVideoLoaded(true)}
-          style={{ objectPosition: "center 30%" }}
+          style={{ objectPosition: "center center" }}
         >
           <source src="/videos/hero-bg.mp4" type="video/mp4" />
         </video>
 
-        {/* Fallback background when video hasn't loaded yet */}
+        {/* Dark overlay for text readability — stronger on mobile */}
         <div
-          className={`absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950/40 to-slate-900 transition-opacity duration-700 ${videoLoaded ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+          className="absolute inset-0 hero-video-overlay"
+          style={isMobile ? { opacity: 1.15 } : undefined}
         />
 
-        {/* Gradient Overlay — slightly stronger on mobile for text readability */}
-        <div className={`absolute inset-0 hero-video-overlay ${isMobile ? "opacity-110" : ""}`} />
-
-        {/* Animated gradient blobs */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/8 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-blue-400/8 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+        {/* Brand glow blobs — subtle, matches new blue palette */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-700/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-green-700/8 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1.2s" }} />
         </div>
       </div>
 
