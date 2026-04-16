@@ -79,7 +79,7 @@ export default function HeroSection() {
          */}
         <video
           ref={videoRef}
-          className={`w-full h-full object-cover transition-opacity duration-1000 ${
+          className={`w-full h-full transition-opacity duration-1000 ${
             videoLoaded ? "opacity-100" : "opacity-0"
           }`}
           autoPlay
@@ -89,6 +89,17 @@ export default function HeroSection() {
           preload={isMobile ? "none" : "metadata"}
           poster="/images/logo.png"
           onCanPlay={() => setVideoLoaded(true)}
+          style={{
+            /*
+             * Desktop (landscape): object-fit cover fills the viewport perfectly.
+             * Mobile  (portrait):  object-fit contain shows the FULL video frame —
+             *   same view as desktop. The unused space (above/below) is filled by
+             *   the dark-blue background div already in the DOM, matching the brand.
+             */
+            objectFit:     isMobile ? "contain" : "cover",
+            objectPosition:"center center",
+            backgroundColor:"#0A1428", // marino profundo — visible on mobile letterbox
+          }}
           onLoadedData={() => setVideoLoaded(true)}
           style={{ objectPosition: "center center" }}
         >
