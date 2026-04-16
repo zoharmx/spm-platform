@@ -1,6 +1,6 @@
 # Documentación Técnica — SanPedroMotoCare Platform
 
-**Versión:** 1.1.0  
+**Versión:** 1.2.0  
 **Fecha:** Abril 2026  
 **Producción:** https://spm-platform.vercel.app  
 **Repositorio:** https://github.com/zoharmx/spm-platform
@@ -18,43 +18,47 @@ ANTES                                  AHORA
 ─────────────────────────────────      ───────────────────────────────────────
 sanpedromotocare.web.app               spm-platform.vercel.app/
  └─ PWA vanilla HTML5 (tracking)        ├── /              (landing)
-                                        ├── /tracking      (tracking)
+                                        ├── /tracking      (tracking público)
 spm-crm-three.vercel.app               ├── /cotizar       (cotizador)
- ├── /              (landing)           ├── /portal        (cliente)
- └── /dashboard     (CRM)              ├── /crm/dashboard  (operadores)
-                                        └── /crm/contact-center
-render.com (FastAPI)                   
- └── SPM-Voice      (call center)      Firebase ←── fuente única de datos
+ ├── /              (landing)           ├── /portal        (cliente autenticado)
+ └── /dashboard     (CRM)              ├── /mecanico      (app de campo)
+                                        └── /crm/*          (operadores/admin)
+render.com (FastAPI / SPM-Voice)
+ └── Integración telefónica            Firebase ←── fuente única de datos
 ```
 
 ### Principios de diseño
 
 1. **Un solo dominio** — toda la audiencia entra por `spm-platform.vercel.app`
-2. **Un solo repositorio** — monolito bien organizado con route groups de Next.js
-3. **Una sola fuente de verdad** — Firebase como backend (Firestore + Realtime DB + Auth)
-4. **Separación por audiencia** — route groups `(public)`, `(portal)`, `(crm)`, `(field)`
-5. **Sin secretos hardcodeados** — 100% variables de entorno
+2. **Un solo repositorio** — monolito organizado con route groups de Next.js App Router
+3. **Una sola fuente de verdad** — Firebase (Firestore + Realtime DB + Auth + FCM)
+4. **Separación por audiencia** — route groups `(public)`, `(auth)`, `(portal)`, `(crm)`, `(field)`
+5. **Sin secretos en código** — 100% variables de entorno encriptadas en Vercel
 
 ---
 
 ## 2. Stack tecnológico
 
-| Capa | Tecnología | Versión | Razón |
-|------|-----------|---------|-------|
+| Capa | Tecnología | Versión | Propósito |
+|------|-----------|---------|-----------|
 | Framework | Next.js | 16.2.3 | App Router, SSR/SSG, API Routes |
 | Lenguaje | TypeScript | 5.x | Tipos en toda la base de código |
 | Estilos | Tailwind CSS | 4.x | CSS-first config con `@theme` |
-| UI Components | Lucide React | 1.x | Iconos consistentes |
-| Animaciones | Framer Motion | 12.x | Animaciones fluidas |
+| Animaciones | Framer Motion | 12.x | Transiciones y microinteracciones |
 | Forms | React Hook Form | 7.x | Validación declarativa |
-| Database | Firebase Firestore | 12.x | NoSQL en tiempo real |
-| Realtime | Firebase Realtime DB | 12.x | GPS tracking del mecánico |
-| Auth | Firebase Authentication | 12.x | Google OAuth + email |
-| AI Chatbot | Google Gemini | gemini-2.0-flash-exp | Atención al cliente |
-| AI secundario | Mistral AI | — | CRM assistant |
-| Charts | Recharts | 3.x | Dashboard analytics |
+| Íconos | Lucide React | 1.x | Íconos consistentes |
+| Charts | Recharts | 3.x | Analytics del CRM |
+| Server state | TanStack Query | 5.x | Caché y sincronización de datos |
+| Fechas | date-fns | 4.x | Formateo y cálculo de fechas |
+| Auth | Firebase Authentication | 12.x | Google OAuth + email/password |
+| Database | Firebase Firestore | 12.x | NoSQL — tickets, usuarios, mecánicos |
+| Realtime | Firebase Realtime DB | 12.x | Posición GPS del mecánico en ruta |
+| Push | Firebase Cloud Messaging | 12.x | Notificaciones push (web + móvil) |
+| IA Chatbot | Google Gemini | gemini-2.0-flash-exp | Atención al cliente 24/7 |
+| Pagos | Stripe | 22.x | Cobros en línea + webhooks |
+| Voz | Twilio | 5.x | Call center automatizado |
+| PWA | Web App Manifest + next-pwa | — | Instalable en móvil |
 | Hosting | Vercel | — | Edge network, CI/CD automático |
-| PWA | Web App Manifest | — | Install prompt nativo |
 
 ---
 
@@ -62,80 +66,108 @@ render.com (FastAPI)
 
 ```
 spm-platform/
-├── app/                         Next.js App Router
-│   ├── (public)/                Rutas públicas (sin auth)
-│   │   ├── page.tsx             Landing page principal
-│   │   ├── tracking/page.tsx    /tracking
-│   │   └── cotizar/page.tsx     /cotizar
+├── app/                              Next.js App Router
+│   ├── (public)/                     Rutas públicas (sin auth requerida)
+│   │   ├── page.tsx                  Landing page principal
+│   │   ├── tracking/page.tsx         /tracking — rastreo por SPM-XXXX
+│   │   └── cotizar/page.tsx          /cotizar — formulario de cotización
+│   │
 │   ├── (auth)/
-│   │   └── login/page.tsx       /login
-│   ├── (portal)/                Auth: viewer+
+│   │   └── login/page.tsx            /login — Email + Google Sign-In
+│   │
+│   ├── (portal)/                     Auth: role viewer+
 │   │   └── portal/
-│   │       ├── page.tsx         /portal
-│   │       ├── servicios/       /portal/servicios
-│   │       ├── pagar/           /portal/pagar
-│   │       └── moto/            /portal/moto
-│   ├── (field)/                 Auth: rol mecanico
-│   │   └── mecanico/
-│   ├── (crm)/                   Auth: operador+
+│   │       ├── page.tsx              /portal — resumen de servicios del cliente
+│   │       ├── servicios/            /portal/servicios — historial
+│   │       ├── pagar/                /portal/pagar — checkout con Stripe
+│   │       └── moto/                 /portal/moto — datos del vehículo
+│   │
+│   ├── (field)/                      Auth: role mecanico
+│   │   └── mecánico/                 App de campo para mecánicos
+│   │
+│   ├── (crm)/                        Auth: role operador+
 │   │   └── crm/
-│   │       ├── dashboard/
-│   │       ├── tickets/
-│   │       ├── clientes/
-│   │       ├── mecanicos/
-│   │       ├── facturas/
-│   │       ├── contact-center/
-│   │       ├── reportes/
-│   │       └── configuracion/
+│   │       ├── dashboard/            Métricas generales + mapa en tiempo real
+│   │       ├── tickets/              Gestión completa de tickets
+│   │       ├── clientes/             Base de datos de clientes
+│   │       ├── mecanicos/            Gestión de mecánicos y disponibilidad
+│   │       ├── facturas/             Facturación y pagos
+│   │       ├── contact-center/       Cola de llamadas + historial Twilio
+│   │       ├── reportes/             Reportes y analytics
+│   │       └── configuracion/        Configuración del sistema
+│   │
 │   ├── api/
-│   │   ├── auth/session/route.ts  POST/DELETE — sesión HttpOnly cookie
-│   │   ├── chat/route.ts          POST — Gemini chatbot
-│   │   ├── quotes/route.ts        POST — Crear lead + ticket
-│   │   └── tracking/
-│   │       └── [ticketId]/        GET — Estado público de ticket
-│   ├── layout.tsx               Root layout + providers + FOUC prevention
-│   └── globals.css              Design system (Tailwind v4)
+│   │   ├── auth/
+│   │   │   └── session/route.ts      POST/DELETE — cookie HttpOnly __session
+│   │   ├── chat/route.ts             POST — proxy Gemini chatbot
+│   │   ├── quotes/route.ts           POST — crear lead + ticket SPM-XXXX
+│   │   ├── tickets/route.ts          CRUD de tickets (autenticado)
+│   │   ├── tracking/[ticketId]/      GET — estado público de un ticket
+│   │   ├── notifications/            FCM push notifications
+│   │   ├── payments/
+│   │   │   ├── create-link/          POST — crear Stripe Payment Link
+│   │   │   └── webhook/              POST — webhooks de Stripe (checkout.session.completed)
+│   │   ├── og/                       GET — Open Graph image dinámica
+│   │   └── voice/
+│   │       ├── outbound/             POST — llamada saliente Twilio
+│   │       ├── say/                  POST — TwiML respuesta de voz
+│   │       └── status/               POST — webhook de estado de llamada
+│   │
+│   ├── layout.tsx                    Root layout + providers + anti-FOUC
+│   ├── globals.css                   Design system (Tailwind v4 @theme)
+│   ├── not-found.tsx                 Página 404 personalizada
+│   └── firebase-messaging-sw.js     Service Worker para FCM
 │
 ├── components/
 │   ├── landing/
-│   │   ├── Navbar.tsx           Navegación sticky con theme/lang toggles
-│   │   ├── HeroSection.tsx      Video bg + stats animados
-│   │   ├── ServicesSection.tsx  Grid de 8 servicios + imágenes de mecánicos
-│   │   ├── TrackingSection.tsx  Widget de rastreo por SPM-XXXX
-│   │   ├── QuoteSection.tsx     Formulario de cotización
-│   │   ├── ContactSection.tsx   Canales de contacto + mapa
-│   │   ├── Footer.tsx           Footer con logo SPM1
-│   │   └── PWAInstallBanner.tsx Banner de instalación PWA
+│   │   ├── Navbar.tsx                Navegación sticky — theme/lang toggles
+│   │   ├── HeroSection.tsx           Video de fondo + estadísticas animadas
+│   │   ├── ServicesSection.tsx       Grid de 8+ servicios con imágenes
+│   │   ├── TrackingSection.tsx       Widget de rastreo inline
+│   │   ├── QuoteSection.tsx          Formulario de cotización
+│   │   ├── ContactSection.tsx        Canales de contacto + mapa
+│   │   ├── Footer.tsx                Footer corporativo
+│   │   └── PWAInstallBanner.tsx      Banner de instalación PWA
 │   ├── chatbot/
-│   │   └── ChatWidget.tsx       Widget flotante Gemini
-│   ├── crm/                     Componentes del CRM
-│   ├── portal/                  Componentes del portal
-│   └── ui/                      Componentes genéricos reutilizables
+│   │   └── ChatWidget.tsx            Widget flotante Gemini
+│   ├── crm/                          Componentes del CRM
+│   ├── portal/                       Componentes del portal de cliente
+│   └── ui/                           Componentes genéricos reutilizables
 │
 ├── contexts/
-│   ├── AuthContext.tsx          Firebase Auth + RBAC
-│   ├── ThemeContext.tsx         Dark/light mode (dark por defecto)
-│   └── LanguageContext.tsx      i18n ES/EN (285+ strings)
+│   ├── AuthContext.tsx               Firebase Auth + RBAC completo
+│   ├── ThemeContext.tsx              Dark/light mode (dark por defecto)
+│   └── LanguageContext.tsx           i18n ES/EN (285+ strings)
 │
 ├── lib/
-│   ├── firebase.ts              Client SDK singleton
-│   ├── firebase-admin.ts        Admin SDK lazy init (server-side only)
-│   ├── rate-limit.ts            In-memory sliding window rate limiter
-│   └── firestore/               CRUD helpers por colección
+│   ├── firebase.ts                   Client SDK singleton (inicialización lazy)
+│   ├── firebase-admin.ts             Admin SDK lazy init — solo server-side
+│   ├── rate-limit.ts                 Sliding window rate limiter en memoria
+│   ├── firestore/
+│   │   ├── tickets.ts                CRUD helpers — service_tickets
+│   │   ├── clients.ts                CRUD helpers — clients
+│   │   └── mechanics.ts              CRUD helpers — mechanics
+│   ├── payments/
+│   │   └── stripe-client.ts          Stripe SDK singleton (server-side)
+│   └── notifications/
+│       ├── push.ts                   FCM helper — envío de push notifications
+│       ├── messages.ts               Plantillas de mensajes por evento
+│       ├── voice.ts                  Twilio helper — llamadas salientes
+│       └── whatsapp.ts               Helper WhatsApp Business (Twilio)
 │
 ├── types/
-│   └── index.ts                 Todos los tipos TypeScript
+│   └── index.ts                      Todos los tipos TypeScript del proyecto
 │
 ├── public/
-│   ├── images/                  Assets de marca
-│   ├── videos/hero-bg.mp4       Video hero (optimizado, 2.6MB para móvil)
-│   ├── icons/                   PWA icons
-│   ├── favicon.png              Logo SPM como favicon
-│   └── manifest.json            PWA Web App Manifest
+│   ├── images/                       Assets de marca
+│   ├── videos/hero-bg.mp4            Video hero (optimizado para móvil)
+│   ├── icons/                        PWA icons (192x192, 512x512)
+│   ├── favicon.png                   Logo SPM como favicon
+│   └── manifest.json                 PWA Web App Manifest
 │
-├── middleware.ts                Route protection (Next.js 16)
-├── next.config.ts               Configuración + CSP headers de seguridad
-├── .env.example                 Plantilla de variables de entorno
+├── proxy.ts                          Protección de rutas (Next.js 16)
+├── next.config.ts                    Configuración + CSP headers de seguridad
+├── .env.example                      Plantilla de variables de entorno
 └── package.json
 ```
 
@@ -165,11 +197,11 @@ Usuario → /login
                                 │
                                 ▼
                         POST /api/auth/session
-                        (Firebase Admin crea HttpOnly cookie __session)
+                        (Firebase Admin verifica idToken → HttpOnly cookie __session)
                                 │
                                 ▼
                         Redirect según rol:
-                        - mecanico  → /mecanico
+                        - mecanico  → /mecánico
                         - viewer    → /portal
                         - operador+ → /crm/dashboard
 ```
@@ -178,11 +210,11 @@ Usuario → /login
 
 ```typescript
 const ROLE_WEIGHTS = {
-  viewer:   1,
-  mecanico: 2,
-  operador: 3,
-  manager:  4,
-  admin:    5,
+  viewer:   1,   // Clientes — portal de seguimiento y pago
+  mecanico: 2,   // Mecánicos — app de campo
+  operador: 3,   // Agentes — CRM completo
+  manager:  4,   // Supervisores — reportes y configuración
+  admin:    5,   // Administradores — acceso total
 }
 
 // hasRole("operador") → true si el usuario es operador, manager o admin
@@ -193,7 +225,7 @@ function hasRole(minimum: UserRole): boolean {
 
 ### Route protection
 
-`middleware.ts` (Next.js 16) revisa la cookie `__session` de Firebase para redirigir:
+`proxy.ts` (Next.js 16 — equivalente al `middleware.ts` en versiones anteriores) lee la cookie `__session` y redirige:
 - Rutas protegidas sin sesión → `/login?from=<ruta>`
 - Usuarios autenticados en `/login` → `/portal`
 
@@ -208,8 +240,8 @@ La validación de rol completa ocurre en el cliente (`AuthContext`) y en los com
 ```typescript
 interface ServiceTicket {
   id: string                    // Firestore doc ID
-  ticketId: string              // SPM-0001 (display ID)
-  status: ServiceTicketStatus   // Ver estados abajo
+  ticketId: string              // SPM-0001 (display ID, generado atómicamente)
+  status: ServiceTicketStatus
   clientId?: string             // Ref a clients/
   clientName: string
   clientPhone: string
@@ -226,18 +258,20 @@ interface ServiceTicket {
   anticipo?: number
   finalCost?: number
   parts?: PartItem[]
-  source: LeadSource
+  source: LeadSource            // "web" | "whatsapp" | "phone" | "crm"
   statusHistory: TicketEvent[]
-  rating?: number               // 1-5, del cliente
+  rating?: number               // 1-5, evaluación del cliente
   photosBefore?: string[]       // URLs Firebase Storage
   photosAfter?: string[]
+  stripePaymentLinkId?: string  // Enlace de pago Stripe
+  stripeSessionId?: string      // ID de sesión de pago completada
   createdAt: Timestamp
   updatedAt: Timestamp
   completedAt?: Timestamp
 }
 ```
 
-### Estados del ticket (flujo lineal)
+### Flujo de estados del ticket
 
 ```
 lead-recibido
@@ -246,18 +280,18 @@ lead-recibido
 diagnostico-pendiente
     │
     ▼
-en-camino  ────→  (mecánico en ruta, GPS activo)
-    │
+en-camino  ────────────────→  GPS activo en Realtime DB
+    │                         Notificación push al cliente
     ▼
-en-servicio ────→ (mecánico en sitio, trabajando)
-    │
+en-servicio ───────────────→  Mecánico en sitio
+    │                         Teléfono del mecánico expuesto en API pública
     ▼
 completado
     │
     ▼
-pagado
+pagado  ←────────────────────  webhook de Stripe (checkout.session.completed)
 
-[cancelado] ─── puede ocurrir en cualquier estado
+[cancelado]  puede ocurrir en cualquier estado previo a "completado"
 ```
 
 ### Colección `users`
@@ -272,6 +306,7 @@ interface SPMUser {
   phone?: string
   photoURL?: string
   mechanicId?: string // Si role === "mecanico"
+  fcmToken?: string   // Token FCM para push notifications
   isActive: boolean
   lastLogin: Timestamp
   createdAt: Timestamp
@@ -299,11 +334,24 @@ interface Mechanic {
 }
 ```
 
+### Firebase Realtime Database — GPS tracking
+
+```
+mechanics/
+  {mechanicId}/
+    lat: number
+    lng: number
+    updatedAt: number    // Unix timestamp
+    ticketId: string     // Ticket activo
+```
+
 ### Colección `_counters`
 
 ```typescript
-// doc: service_tickets
-{ count: number }   // Contador atómico para generar SPM-XXXX via Transaction
+// doc: "service_tickets"
+{ count: number }
+// Incrementado atómicamente con Firestore Transaction
+// Genera SPM-0001, SPM-0002, etc.
 ```
 
 ---
@@ -312,48 +360,115 @@ interface Mechanic {
 
 ### POST /api/auth/session
 
-Recibe el `idToken` de Firebase del cliente, lo verifica con Firebase Admin SDK y crea una cookie HttpOnly `__session` de 5 días.
+Recibe el `idToken` de Firebase del cliente, lo verifica con Firebase Admin SDK y crea la cookie HttpOnly `__session` (Secure, SameSite=Lax, 5 días).
 
-**DELETE /api/auth/session** — Limpia la cookie en sign-out.
-
-### POST /api/quotes
-
-Recibe datos del formulario de cotización, crea un documento en `leads` y genera automáticamente un `service_ticket` con status `lead-recibido`.
-
-**Autenticación:** Ninguna (pública).  
-**Rate limit:** 5 requests/minuto por IP.  
-**Validación:** Sanitización y truncado de todos los campos. Solo campos permitidos explícitamente (no spread del body).
-
-**ID de ticket:** Se genera con un Firestore Transaction atómico en la colección `_counters`, formateado como `SPM-XXXX`.
-
-### GET /api/tracking/[ticketId]
-
-Consulta pública. Busca en `service_tickets` por el campo `ticketId` (no por doc ID).
-
-**Rate limit:** 30 requests/minuto por IP.
-
-**Campos que se exponen públicamente:**
-- `ticketId`, `status`, `clientName`, `serviceType`
-- `serviceAddress` (calle, colonia y ciudad)
-- `estimatedCost`
-- `mechanicName` (siempre)
-- `mechanicPhone` — **solo si status es `en-camino` o `en-servicio`**
-
-### POST /api/chat
-
-Proxy hacia Google Gemini con un system prompt especializado en SPM.
-
-**Rate limit:** 20 requests/minuto por IP.  
-**Modelo:** `gemini-2.0-flash-exp`  
-**Context window:** Se envían los últimos 10 mensajes del historial.
+**DELETE /api/auth/session** — Borra la cookie en sign-out.
 
 ---
 
-## 7. Design System
+### POST /api/quotes
+
+Recibe datos del formulario de cotización. Crea un documento en `leads` y genera automáticamente un `service_ticket` con status `lead-recibido`.
+
+**Autenticación:** Ninguna (pública).  
+**Rate limit:** 5 requests/minuto por IP.  
+**Validación:** Sanitización, truncado y whitelist explícita de campos (sin object spread del body).  
+**ID de ticket:** Firestore Transaction atómica en `_counters` → `SPM-XXXX`.
+
+---
+
+### GET /api/tracking/[ticketId]
+
+Consulta pública del estado de un ticket por su ID legible (ej: `SPM-0042`).
+
+**Rate limit:** 30 requests/minuto por IP.  
+**Campos expuestos públicamente:**
+- `ticketId`, `status`, `clientName`, `serviceType`
+- `serviceAddress` (calle, colonia y ciudad)
+- `estimatedCost`, `mechanicName`
+- `mechanicPhone` — **solo si status es `en-camino` o `en-servicio`**
+
+---
+
+### POST /api/chat
+
+Proxy hacia Google Gemini con system prompt especializado en SPM.
+
+**Rate limit:** 20 requests/minuto por IP.  
+**Modelo:** `gemini-2.0-flash-exp`  
+**Historial:** Se envían los últimos 10 mensajes de la conversación.
+
+---
+
+### POST /api/payments/create-link
+
+Crea un Stripe Payment Link para un ticket existente. Requiere `ticketId` y monto. Guarda el `stripePaymentLinkId` en Firestore.
+
+**Autenticación:** Requiere sesión activa (operador+).
+
+---
+
+### POST /api/payments/webhook
+
+Recibe webhooks de Stripe firmados con `STRIPE_WEBHOOK_SECRET`. Al recibir `checkout.session.completed`, actualiza el ticket a status `pagado` y registra el `stripeSessionId`.
+
+**Autenticación:** Verificación de firma Stripe (`stripe.webhooks.constructEvent`).
+
+---
+
+### POST /api/voice/outbound
+
+Inicia una llamada saliente vía Twilio con el número configurado en `TWILIO_PHONE_NUMBER`. Recibe el número de destino y el mensaje a pronunciar.
+
+**Autenticación:** Requiere sesión activa (operador+).
+
+---
+
+### POST /api/voice/say & POST /api/voice/status
+
+Endpoints TwiML para el flujo de llamada y webhook de estado de Twilio.
+
+---
+
+### POST /api/notifications
+
+Envía push notifications vía FCM a uno o varios tokens registrados. Usado internamente al cambiar el estado de un ticket.
+
+---
+
+## 7. Integraciones externas
+
+### Stripe (pagos en línea)
+
+- **SDK:** `stripe` v22.x (server-side únicamente)
+- **Flujo:** Operador crea payment link → cliente paga → webhook actualiza ticket a `pagado`
+- **Webhook:** Firmado con `STRIPE_WEBHOOK_SECRET` — validado con `stripe.webhooks.constructEvent`
+
+### Twilio (voz y WhatsApp)
+
+- **SDK:** `twilio` v5.x (server-side únicamente)
+- **Llamadas:** Salientes para seguimiento y contact center
+- **WhatsApp:** Helper disponible en `lib/notifications/whatsapp.ts` (en integración)
+
+### Firebase Cloud Messaging (notificaciones push)
+
+- **Service Worker:** `firebase-messaging-sw.js` registrado en el root del dominio
+- **Token:** Guardado en `users/{uid}.fcmToken` al aceptar permisos
+- **Eventos:** Cambios de estado del ticket (en-camino, completado, pagado)
+
+### Google Gemini (IA)
+
+- **SDK:** `@google/generative-ai` v0.24.1 (server-side únicamente)
+- **Modelo:** `gemini-2.0-flash-exp`
+- **Rol:** Atención al cliente 24/7 con conocimiento de servicios, zonas y precios SPM
+
+---
+
+## 8. Design System
 
 ### Tailwind CSS v4 — configuración en CSS
 
-A diferencia de versiones anteriores, Tailwind v4 no usa `tailwind.config.ts`. La configuración se hace en `globals.css` con directivas `@theme`:
+Tailwind v4 elimina `tailwind.config.ts`. La configuración vive en `globals.css`:
 
 ```css
 @import "tailwindcss";
@@ -366,20 +481,18 @@ A diferencia de versiones anteriores, Tailwind v4 no usa `tailwind.config.ts`. L
 }
 ```
 
-### Dark mode (default)
+### Dark mode (predeterminado)
 
-Se implementa con la clase `.dark` en el `<html>`. El tema oscuro es el **default absoluto de la plataforma**:
+El tema oscuro es el **default absoluto** de la plataforma:
 
-1. Si el usuario no tiene preferencia guardada → **dark**
-2. Si el usuario eligió explícitamente `light` → light
-3. Script inline en `<head>` previene FOUC antes de la hidratación de React
+1. Sin preferencia guardada → **dark**
+2. Usuario eligió `light` explícitamente → light
+3. Script inline en `<head>` previene FOUC antes de que React hidrate
 
 ```javascript
 // layout.tsx — anti-FOUC
 var t = localStorage.getItem('spm-theme');
-if (t !== 'light') {
-  document.documentElement.classList.add('dark');
-}
+if (t !== 'light') document.documentElement.classList.add('dark');
 ```
 
 ### Variables CSS semánticas
@@ -402,24 +515,23 @@ if (t !== 'light') {
 
 ---
 
-## 8. Internacionalización (i18n)
+## 9. Internacionalización (i18n)
 
-La plataforma implementa un sistema de i18n manual (sin dependencias externas):
+Sistema manual sin dependencias externas:
 
 - **Idiomas:** Español (es-MX) y English
 - **Persistencia:** `localStorage.getItem("spm-lang")`
-- **Implementación:** `LanguageContext` con un objeto `translations` que contiene 285+ strings
+- **Implementación:** `LanguageContext` con objeto `translations` de 285+ strings
 - **Toggle:** Botón en la navbar (ES ↔ EN)
 
 ```typescript
-// Uso en cualquier componente
 const { t, lang, toggleLang } = useLanguage();
 <h1>{t("hero_title")}</h1>
 ```
 
 ---
 
-## 9. PWA
+## 10. PWA
 
 ### manifest.json
 
@@ -432,45 +544,41 @@ const { t, lang, toggleLang } = useLanguage();
   "background_color": "#0f172a",
   "shortcuts": [
     { "name": "Rastrear", "url": "/tracking" },
-    { "name": "Cotizar", "url": "/cotizar" }
+    { "name": "Cotizar",  "url": "/cotizar" }
   ]
 }
 ```
 
 ### Install Banner
 
-`PWAInstallBanner.tsx` captura el evento `beforeinstallprompt`, lo cancela y después de 3 segundos muestra un banner elegante. La preferencia "dismiss" se guarda en `localStorage`.
+`PWAInstallBanner.tsx` captura `beforeinstallprompt`, lo cancela y tras 3 segundos muestra el banner. La preferencia de "dismiss" se persiste en `localStorage`.
 
 ---
 
-## 10. Chatbot Gemini
-
-### Arquitectura
+## 11. Chatbot Gemini
 
 ```
 Cliente (ChatWidget.tsx)
     │
-    ├── Mantiene historial en estado local (useState)
+    ├── Historial en estado local (useState)
     │
     └── POST /api/chat  ← mensaje + últimos 10 del historial
                 │
                 └── Google Generative AI SDK
                         └── gemini-2.0-flash-exp + system prompt SPM
-                                └── Respuesta → cliente
 ```
 
-### System Prompt (resumen)
-
+**System prompt cubre:**
 - Servicios disponibles y precios aproximados
 - Zonas de cobertura (San Pedro, MTY, Guadalupe, Apodaca, etc.)
 - Horarios: Lun–Dom 7am–9pm, urgencias 24/7
-- Tiempo de respuesta: 45 minutos promedio
+- Tiempo de respuesta: ~45 minutos
 - Formas de pago: efectivo, tarjeta, transferencia
-- Responder en el idioma del usuario
+- Responde en el idioma del usuario
 
 ---
 
-## 11. Deploy y CI/CD
+## 12. Deploy y CI/CD
 
 ### Flujo actual
 
@@ -488,7 +596,7 @@ Desarrollador
 
 ### Variables de entorno en Vercel
 
-Todas las variables están configuradas como `Encrypted` en el scope `Production`:
+Todas las variables están configuradas como `Encrypted` en scope `Production`. Ver `.env.example` para la lista completa.
 
 ```bash
 vercel env add NUEVA_VARIABLE production
@@ -499,27 +607,28 @@ vercel --prod
 ### Rollback
 
 ```bash
-vercel rollback    # Vuelve al deploy anterior
-vercel ls          # Lista todos los deploys
+vercel rollback   # Vuelve al deploy anterior
+vercel ls         # Lista todos los deploys con su URL
 ```
 
 ---
 
-## 12. Seguridad
+## 13. Seguridad
 
-### Estado actual — implementado y activo
+### Implementado y activo
 
 | Recurso | Protección |
 |---------|-----------|
-| Variables de entorno | Encriptadas en Vercel, nunca en código |
-| Firebase Admin SDK | Server-side únicamente (API Routes) |
-| Rutas CRM | `middleware.ts` + validación de rol en AuthContext |
-| Session cookie | HttpOnly, Secure, SameSite=Lax, 5 días, Firebase Admin |
-| API `/api/quotes` | Rate limit 5 req/min por IP + validación + sanitización |
+| Variables de entorno | Encriptadas en Vercel, nunca en código fuente |
+| Firebase Admin SDK | Server-side exclusivamente (API Routes) |
+| Rutas CRM | `proxy.ts` + validación de rol en AuthContext |
+| Session cookie | HttpOnly, Secure, SameSite=Lax, 5 días |
+| API `/api/quotes` | Rate limit 5 req/min por IP + sanitización |
 | API `/api/chat` | Rate limit 20 req/min por IP |
 | API `/api/tracking` | Rate limit 30 req/min por IP |
-| Tracking API | Solo expone datos públicos, teléfono del mecánico restringido por estado |
-| Firestore | Reglas de seguridad activas |
+| Tracking API | Teléfono del mecánico solo en estado `en-camino`/`en-servicio` |
+| Pagos Stripe | Webhook verificado con firma `STRIPE_WEBHOOK_SECRET` |
+| Firestore | Security Rules activas |
 | CSP | Headers completos: script-src, style-src, img-src, connect-src, frame-src |
 | X-Frame-Options | DENY |
 | X-Content-Type-Options | nosniff |
@@ -529,44 +638,39 @@ vercel ls          # Lista todos los deploys
 | HSTS | max-age=63072000; includeSubDomains; preload (solo producción) |
 | Inputs | Truncado + whitelist de campos (sin object spread del body) |
 
-### Google Sign-In — CSP
+### Pendientes (próximas versiones)
 
-El `frame-src` incluye `https://*.firebaseapp.com` para permitir el popup de Firebase Auth OAuth. El `connect-src` incluye los dominios de Firebase necesarios para la autenticación.
-
-### Pendientes (mejoras futuras)
-
-- [ ] CAPTCHA en el formulario de cotización (hCaptcha o Cloudflare Turnstile)
-- [ ] Firebase App Check para prevenir uso no autorizado del SDK
-- [ ] Rate limiting distribuido con Redis/Upstash para entornos multi-instancia
+- [ ] CAPTCHA en formulario de cotización (hCaptcha o Cloudflare Turnstile)
+- [ ] Firebase App Check
+- [ ] Rate limiting distribuido con Redis/Upstash (multi-instancia)
 - [ ] Validación de webhook con `WEBHOOK_SECRET` en integraciones externas
 
 ---
 
-## 13. Guía de contribución
+## 14. Guía de contribución
 
-### Agregar una nueva página al CRM
+### Agregar una nueva ruta al CRM
 
 1. Crear el directorio: `app/(crm)/crm/nueva-seccion/`
 2. Crear `page.tsx` con el componente de página
-3. Agregar el link en `NAV_ITEMS` dentro de `app/(crm)/crm/dashboard/page.tsx`
+3. Agregar el link en la navegación del CRM
 4. Si requiere permisos especiales, agregar validación con `hasRole()`
-
-### Agregar un nuevo idioma
-
-1. Agregar el nuevo código de idioma al tipo `Lang` en `LanguageContext.tsx`
-2. Crear el objeto de traducciones con todas las keys del idioma `es`
-3. Agregar el nuevo idioma al objeto `translations`
-4. El toggle en la navbar necesita actualizarse para ciclar entre más de 2 opciones
 
 ### Agregar una nueva colección a Firestore
 
 1. Definir el tipo en `types/index.ts`
 2. Crear el helper en `lib/firestore/nueva-coleccion.ts`
-3. Agregar las reglas de seguridad en `firestore.rules`
+3. Agregar las reglas de seguridad en Firebase Console (Firestore Rules)
+
+### Agregar un nuevo idioma
+
+1. Agregar el código al tipo `Lang` en `LanguageContext.tsx`
+2. Crear el objeto de traducciones con todas las keys del idioma `es`
+3. Actualizar el toggle en la navbar para ciclar entre más de 2 opciones
 
 ---
 
-## 14. Dependencias principales
+## 15. Dependencias principales
 
 ```json
 {
@@ -575,27 +679,19 @@ El `frame-src` incluye `https://*.firebaseapp.com` para permitir el popup de Fir
   "firebase": "12.12.0",
   "firebase-admin": "13.8.0",
   "@google/generative-ai": "0.24.1",
+  "stripe": "22.0.1",
+  "twilio": "5.13.1",
   "framer-motion": "12.38.0",
   "lucide-react": "1.8.0",
   "react-hook-form": "7.72.1",
   "react-hot-toast": "2.6.0",
-  "react-intersection-observer": "10.0.3",
-  "react-countup": "6.5.3",
   "recharts": "3.8.1",
-  "tailwindcss": "4.x",
   "@tanstack/react-query": "5.99.0",
-  "date-fns": "4.1.0"
+  "date-fns": "4.1.0",
+  "next-pwa": "5.6.0"
 }
 ```
 
 ---
 
-## 15. Contacto y soporte
-
-- **Email:** contacto@sanpedromotocare.mx
-- **WhatsApp:** +52 81 0000-0000
-- **GitHub Issues:** https://github.com/zoharmx/spm-platform/issues
-
----
-
-*Documentación actualizada el 15 de abril de 2026. Versión 1.1.0*
+*Documentación actualizada el 16 de abril de 2026. Versión 1.2.0*
