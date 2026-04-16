@@ -101,7 +101,6 @@ export default function HeroSection() {
             backgroundColor:"#0A1428", // marino profundo — visible on mobile letterbox
           }}
           onLoadedData={() => setVideoLoaded(true)}
-          style={{ objectPosition: "center center" }}
         >
           <source src="/videos/hero-bg.mp4" type="video/mp4" />
         </video>
