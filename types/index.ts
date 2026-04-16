@@ -193,7 +193,10 @@ export interface ServiceTicket {
   rating?: number;
   photosBefore?: string[];
   photosAfter?: string[];
-  // Payments
+  // Payments — anticipo (guarantee deposit before field visit)
+  anticipoLinkUrl?: string;     // Stripe URL for the diagnostic-visit charge
+  anticipoPagado?: boolean;     // true once Stripe webhook confirms anticipo payment
+  // Payments — final service
   paymentLinkUrl?: string;      // Stripe Checkout Session URL
   stripeSessionId?: string;     // Stripe session ID for webhook matching
   paidAt?: Timestamp;

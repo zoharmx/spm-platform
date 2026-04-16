@@ -7,23 +7,48 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { subscribeTickets } from "@/lib/firestore/tickets";
+import type { ServiceTicket } from "@/types";
+import { STATUS_LABELS, STATUS_COLORS } from "@/types";
 import {
   Bike, FileText, CreditCard, User, LogOut, Plus,
   Search, Clock, CheckCircle2, AlertCircle, Loader2, Home,
+  ExternalLink,
 } from "lucide-react";
 import NotificationPermission from "@/components/portal/NotificationPermission";
+
+function formatDate(ts: unknown): string {
+  if (!ts) return "";
+  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+}
 
 export default function PortalPage() {
   const { user, signOut, loading } = useAuth();
   const { isDark } = useTheme();
   const { t } = useLanguage();
   const router = useRouter();
+  const [myTickets, setMyTickets] = useState<ServiceTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketSearch, setTicketSearch] = useState("");
   const trackingFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeTickets(all => {
+      setMyTickets(
+        all
+          .filter(t => t.clientEmail === user.email || t.clientPhone === user.phone)
+          .slice(0, 5)
+      );
+      setTicketsLoading(false);
+    });
+    return unsub;
+  }, [user]);
 
   async function handleSignOut() {
     await signOut();
@@ -147,38 +172,98 @@ export default function PortalPage() {
           </form>
         </div>
 
-        {/* Recent Services Placeholder */}
+        {/* Recent Services — real data */}
         <div className={`rounded-2xl border ${isDark ? "bg-slate-900 border-white/5" : "bg-white border-gray-100 shadow-sm"}`}>
           <div className="flex items-center justify-between px-5 py-4 border-b border-inherit">
             <h2 className={`font-semibold text-base ${isDark ? "text-white" : "text-slate-900"}`}>
               Mis servicios recientes
             </h2>
-            <Link
-              href="/portal/servicios"
-              className="text-xs text-[var(--color-spm-red)] hover:underline"
-            >
+            <Link href="/portal/servicios" className="text-xs text-[var(--color-spm-red)] hover:underline">
               Ver todos →
             </Link>
           </div>
 
-          <div className="p-5">
-            {/* Placeholder state */}
-            <div className={`text-center py-10 ${isDark ? "text-slate-600" : "text-slate-300"}`}>
-              <Bike size={40} className="mx-auto mb-3" />
-              <p className={`font-medium text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                No tienes servicios registrados aún
-              </p>
-              <p className={`text-xs mt-1 mb-4 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
-                Solicita tu primer servicio y aparecerá aquí
-              </p>
-              <Link
-                href="/#cotizar"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-spm-red)] text-white text-sm font-semibold rounded-xl hover:bg-[var(--color-spm-red-dark)] transition-all"
-              >
-                <Plus size={14} />
-                Solicitar servicio
-              </Link>
-            </div>
+          <div className="p-3">
+            {ticketsLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 size={20} className="animate-spin text-[var(--color-spm-red)]" />
+              </div>
+            ) : myTickets.length === 0 ? (
+              <div className={`text-center py-10`}>
+                <Bike size={36} className={`mx-auto mb-3 ${isDark ? "text-slate-700" : "text-slate-300"}`} />
+                <p className={`font-medium text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Sin servicios registrados aún
+                </p>
+                <p className={`text-xs mt-1 mb-4 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                  Solicita tu primer servicio y aparecerá aquí
+                </p>
+                <Link
+                  href="/#cotizar"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-spm-red)] text-white text-sm font-semibold rounded-xl hover:bg-[var(--color-spm-red-dark)] transition-all"
+                >
+                  <Plus size={14} />
+                  Solicitar servicio
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {myTickets.map(ticket => (
+                  <div
+                    key={ticket.id}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-colors ${
+                      isDark ? "hover:bg-white/5" : "hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      ticket.status === "pagado" ? "bg-emerald-500/15" :
+                      ticket.status === "cancelado" ? "bg-red-500/15" :
+                      "bg-[var(--color-spm-red)]/10"
+                    }`}>
+                      {ticket.status === "pagado"
+                        ? <CheckCircle2 size={16} className="text-emerald-400" />
+                        : ticket.status === "cancelado"
+                        ? <AlertCircle size={16} className="text-red-400" />
+                        : <Clock size={16} className="text-[var(--color-spm-red)]" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-[var(--color-spm-red)]">
+                          {ticket.ticketId}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[ticket.status]}`}>
+                          {STATUS_LABELS[ticket.status]}
+                        </span>
+                      </div>
+                      <p className={`text-xs truncate mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        {ticket.serviceDescription?.slice(0, 50)}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      {ticket.finalCost != null && (
+                        <p className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                          ${ticket.finalCost.toLocaleString("es-MX")}
+                        </p>
+                      )}
+                      <p className={`text-xs ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                        {formatDate(ticket.createdAt)}
+                      </p>
+                    </div>
+                    {/* Pay now button for completed + unpaid */}
+                    {ticket.status === "completado" && ticket.paymentLinkUrl && (
+                      <a
+                        href={ticket.paymentLinkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all"
+                      >
+                        <CreditCard size={11} /> Pagar
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     serviceType: string;
     amountMXN: number;
     sendWhatsApp?: boolean;
+    type?: "anticipo" | "servicio";
   };
 
   try { body = await req.json(); }
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "amountMXN must be between 1 and 500,000" }, { status: 400 });
   }
 
+  const paymentType = body.type === "anticipo" ? "anticipo" : "servicio";
+
   // ── Create Stripe Checkout Session ─────────────────────────────────────────
   const checkout = await createCheckoutSession({
     ticketId,
@@ -74,6 +77,7 @@ export async function POST(req: NextRequest) {
     serviceDescription: (serviceDescription ?? "Servicio SPM").slice(0, 500),
     serviceType: (serviceType ?? "otro").slice(0, 50),
     amountMXN,
+    type: paymentType,
   });
 
   if (!checkout.success || !checkout.url) {
@@ -93,11 +97,11 @@ export async function POST(req: NextRequest) {
       .get();
 
     if (!snap.empty) {
-      await snap.docs[0].ref.update({
-        paymentLinkUrl:  checkout.url,
-        stripeSessionId: checkout.sessionId,
-        updatedAt:       FieldValue.serverTimestamp(),
-      });
+      const updateFields =
+        paymentType === "anticipo"
+          ? { anticipoLinkUrl: checkout.url, updatedAt: FieldValue.serverTimestamp() }
+          : { paymentLinkUrl: checkout.url, stripeSessionId: checkout.sessionId, updatedAt: FieldValue.serverTimestamp() };
+      await snap.docs[0].ref.update(updateFields);
     }
   } catch (err) {
     // Non-fatal — the link was created, log and continue

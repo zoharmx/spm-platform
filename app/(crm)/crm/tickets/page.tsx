@@ -60,7 +60,7 @@ import {
 import {
   Plus, Search, Filter, ChevronRight, X, Loader2,
   User, Phone, MapPin, Wrench, Clock, CheckCircle2,
-  AlertCircle, DollarSign, ChevronDown,
+  AlertCircle, DollarSign, ChevronDown, CreditCard,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -227,7 +227,9 @@ function TicketDrawer({
   const [costs, setCosts]         = useState({ estimated: "", final: "", anticipo: "" });
   const [diagnosis, setDiagnosis] = useState("");
   const [selectedMechanic, setSelectedMechanic] = useState("");
-  const [sendingLink, setSendingLink] = useState(false);
+  const [sendingLink, setSendingLink]       = useState(false);
+  const [sendingAnticipo, setSendingAnticipo] = useState(false);
+  const [anticipoAmount, setAnticipo]       = useState(200);
 
   useEffect(() => {
     if (ticket) {
@@ -291,6 +293,39 @@ function TicketDrawer({
       if (url) toast.success("Link de pago enviado por WhatsApp ✅");
       else toast.error("No se pudo generar el link de pago");
     } finally { setSendingLink(false); }
+  }
+
+  async function handleSendAnticipo() {
+    if (!ticket!.clientPhone) {
+      toast.error("El ticket no tiene teléfono de cliente");
+      return;
+    }
+    if (anticipoAmount <= 0) {
+      toast.error("El monto del anticipo debe ser mayor a $0");
+      return;
+    }
+    setSendingAnticipo(true);
+    try {
+      const res = await fetch("/api/payments/create-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId:           ticket!.ticketId,
+          clientName:         ticket!.clientName ?? "Cliente",
+          clientPhone:        ticket!.clientPhone,
+          serviceDescription: `Visita de diagnóstico — ${ticket!.ticketId}`,
+          serviceType:        ticket!.serviceType,
+          amountMXN:          anticipoAmount,
+          sendWhatsApp:       true,
+          type:               "anticipo",
+        }),
+      });
+      const data = await res.json();
+      if (data.url) toast.success(`Anticipo $${anticipoAmount} enviado por WhatsApp ✅`);
+      else toast.error("No se pudo generar el link de anticipo");
+    } catch {
+      toast.error("Error al generar el anticipo");
+    } finally { setSendingAnticipo(false); }
   }
 
   async function handleSaveFields() {
@@ -442,6 +477,43 @@ function TicketDrawer({
             {saving && <Loader2 size={14} className="animate-spin" />}
             Guardar cambios
           </button>
+
+          {/* ── Anticipo / guarantee deposit ──────────────────────────────── */}
+          {ticket.status === "diagnostico-pendiente" && (
+            <div className={`p-4 rounded-2xl border ${isDark ? "border-amber-900/30 bg-amber-950/20" : "border-amber-200 bg-amber-50"}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                Cobrar visita de diagnóstico
+              </p>
+              <div className="flex gap-2 mb-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={anticipoAmount}
+                    onChange={e => setAnticipo(Number(e.target.value))}
+                    className={`w-full pl-7 pr-3 py-2 rounded-xl border text-sm outline-none transition-all focus:ring-1 focus:ring-amber-500/30 focus:border-amber-500 ${
+                      isDark ? "bg-slate-800 border-white/10 text-white" : "bg-white border-gray-200 text-slate-900"
+                    }`}
+                  />
+                </div>
+                <span className={`self-center text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>MXN</span>
+              </div>
+              <button
+                onClick={handleSendAnticipo}
+                disabled={sendingAnticipo}
+                className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {sendingAnticipo ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                {ticket.anticipoLinkUrl ? "Reenviar link de anticipo" : `Cobrar visita ($${anticipoAmount})`}
+              </button>
+              {ticket.anticipoPagado && (
+                <p className="text-xs text-green-400 text-center mt-2 font-medium">
+                  ✓ Anticipo recibido — mecánico autorizado a salir
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Payment link button — visible for completed/unpaid tickets with a final cost */}
           {(ticket.status === "completado" || (ticket.status !== "pagado" && ticket.paymentLinkUrl)) && ticket.finalCost && (

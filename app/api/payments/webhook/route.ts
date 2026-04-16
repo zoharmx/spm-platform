@@ -42,24 +42,24 @@ export async function POST(req: NextRequest) {
   // ── Handle events ──────────────────────────────────────────────────────────
   try {
     if (event.type === "checkout.session.completed") {
-      const session  = event.data.object as {
+      const session = event.data.object as {
         id: string;
-        metadata?: { ticketId?: string; clientName?: string; clientPhone?: string };
+        metadata?: { ticketId?: string; clientName?: string; clientPhone?: string; type?: string };
         amount_total?: number | null;
         payment_status?: string;
       };
 
-      const ticketId   = session.metadata?.ticketId;
-      const clientName = session.metadata?.clientName ?? "Cliente";
+      const ticketId    = session.metadata?.ticketId;
+      const clientName  = session.metadata?.clientName ?? "Cliente";
       const clientPhone = session.metadata?.clientPhone;
-      const amountMXN  = session.amount_total != null ? session.amount_total / 100 : null;
+      const amountMXN   = session.amount_total != null ? session.amount_total / 100 : null;
+      const paymentType = session.metadata?.type ?? "servicio"; // "anticipo" | "servicio"
 
       if (!ticketId) {
         console.warn("[StripeWebhook] No ticketId in session metadata:", session.id);
         return NextResponse.json({ received: true });
       }
 
-      // Update ticket status to "pagado"
       const db   = getAdminDb();
       const snap = await db
         .collection("service_tickets")
@@ -69,33 +69,63 @@ export async function POST(req: NextRequest) {
 
       if (!snap.empty) {
         const docRef = snap.docs[0].ref;
-        await docRef.update({
-          status:      "pagado",
-          paidAt:      FieldValue.serverTimestamp(),
-          updatedAt:   FieldValue.serverTimestamp(),
-          // Append to status history
-          statusHistory: FieldValue.arrayUnion({
-            status:    "pagado",
-            timestamp: new Date(),
-            note:      `Pago online vía Stripe — Session ${session.id}`,
-          }),
-        });
 
-        console.info(`[StripeWebhook] Ticket ${ticketId} marked as pagado`);
+        if (paymentType === "anticipo") {
+          // ── Anticipo: register deposit, do NOT advance to "pagado" ──────────
+          await docRef.update({
+            anticipoPagado: true,
+            anticipo:       amountMXN ?? FieldValue.increment(0),
+            updatedAt:      FieldValue.serverTimestamp(),
+            statusHistory:  FieldValue.arrayUnion({
+              status:    "diagnostico-pendiente",
+              timestamp: new Date(),
+              note:      `Anticipo de visita cobrado ($${amountMXN?.toLocaleString("es-MX") ?? "—"} MXN) — Session ${session.id}`,
+            }),
+          });
 
-        // Send WhatsApp confirmation
-        if (clientPhone) {
-          const msg = [
-            `✅ *Pago confirmado — ${ticketId}*`,
-            ``,
-            `Hola ${clientName.split(" ")[0]}, recibimos tu pago de *$${amountMXN?.toLocaleString("es-MX") ?? "—"} MXN*.`,
-            `¡Gracias por confiar en SanPedroMotoCare!`,
-            ``,
-            `Hasta la próxima 🏍️`,
-            `— SanPedroMotoCare`,
-          ].join("\n");
+          console.info(`[StripeWebhook] Anticipo confirmed for ticket ${ticketId}`);
 
-          await sendWhatsApp({ to: clientPhone, body: msg });
+          if (clientPhone) {
+            await sendWhatsApp({
+              to: clientPhone,
+              body: [
+                `✅ *Visita confirmada — ${ticketId}*`,
+                ``,
+                `Hola ${clientName.split(" ")[0]}, recibimos tu anticipo de *$${amountMXN?.toLocaleString("es-MX") ?? "—"} MXN*.`,
+                `Nuestro mecánico está en camino. Te avisaremos cuando salga.`,
+                `— SanPedroMotoCare 🏍️`,
+              ].join("\n"),
+            });
+          }
+        } else {
+          // ── Servicio: mark ticket as "pagado" ────────────────────────────────
+          await docRef.update({
+            status:        "pagado",
+            paidAt:        FieldValue.serverTimestamp(),
+            updatedAt:     FieldValue.serverTimestamp(),
+            statusHistory: FieldValue.arrayUnion({
+              status:    "pagado",
+              timestamp: new Date(),
+              note:      `Pago online vía Stripe — Session ${session.id}`,
+            }),
+          });
+
+          console.info(`[StripeWebhook] Ticket ${ticketId} marked as pagado`);
+
+          if (clientPhone) {
+            await sendWhatsApp({
+              to: clientPhone,
+              body: [
+                `✅ *Pago confirmado — ${ticketId}*`,
+                ``,
+                `Hola ${clientName.split(" ")[0]}, recibimos tu pago de *$${amountMXN?.toLocaleString("es-MX") ?? "—"} MXN*.`,
+                `¡Gracias por confiar en SanPedroMotoCare!`,
+                ``,
+                `Hasta la próxima 🏍️`,
+                `— SanPedroMotoCare`,
+              ].join("\n"),
+            });
+          }
         }
       } else {
         console.warn(`[StripeWebhook] Ticket ${ticketId} not found in Firestore`);

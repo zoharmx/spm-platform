@@ -41,6 +41,7 @@ export interface CreateCheckoutParams {
   serviceDescription: string;
   serviceType: string;
   amountMXN: number;       // Final cost in MXN (whole number, e.g. 850)
+  type?: "anticipo" | "servicio"; // anticipo = deposit before field visit; default "servicio"
 }
 
 export interface CheckoutResult {
@@ -82,6 +83,7 @@ export async function createCheckoutSession(params: CreateCheckoutParams): Promi
         clientName:  params.clientName,
         clientPhone: params.clientPhone,
         platform:    "spm-platform",
+        type:        params.type ?? "servicio",
       },
       customer_email: undefined, // Can add clientEmail if available
       success_url: `${appUrl}/portal/pagar?status=success&ticket=${params.ticketId}`,
