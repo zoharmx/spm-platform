@@ -160,7 +160,9 @@ spm-platform/
 │
 ├── public/
 │   ├── images/                       Assets de marca
-│   ├── videos/hero-bg.mp4            Video hero (optimizado para móvil)
+│   ├── videos/hero-bg-desktop.mp4    Video hero desktop (1280×720, landscape, ~35KB)
+│   ├── videos/hero-bg-mobile.mp4     Video hero mobile (540×960, portrait, ~447KB)
+│   ├── videos/hero-poster.jpg        Frame poster LCP (1280×720, ~5KB)
 │   ├── icons/                        PWA icons (192x192, 512x512)
 │   ├── favicon.png                   Logo SPM como favicon
 │   └── manifest.json                 PWA Web App Manifest

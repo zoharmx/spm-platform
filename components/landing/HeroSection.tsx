@@ -15,7 +15,6 @@ export default function HeroSection() {
   const { ref: statsRef, inView: statsInView } = useInView({ triggerOnce: true, threshold: 0.2 });
 
   useEffect(() => {
-    // Detect mobile to apply optimizations
     const mq = window.matchMedia("(max-width: 768px)");
     setIsMobile(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
@@ -23,15 +22,16 @@ export default function HeroSection() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // When the source file changes (mobile ↔ desktop), reload and replay the video
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    // On mobile: defer play slightly to avoid blocking LCP
-    if (isMobile) {
-      const id = setTimeout(() => video.play().catch(() => {}), 600);
-      return () => clearTimeout(id);
-    }
-    video.play().catch(() => {});
+    setVideoLoaded(false);
+    video.load();
+    // On mobile defer slightly to avoid blocking LCP paint
+    const delay = isMobile ? 600 : 0;
+    const id = setTimeout(() => video.play().catch(() => {}), delay);
+    return () => clearTimeout(id);
   }, [isMobile]);
 
   const stats = [
@@ -47,15 +47,31 @@ export default function HeroSection() {
     { icon: Clock, text: "Atención 24/7" },
   ];
 
+  /*
+   * Two pre-encoded files served by device type:
+   *
+   *  hero-bg-desktop.mp4  — landscape 1280×720, crop del centro del original
+   *                          portrait, CRF 26, 24fps  → object-fit: cover llena
+   *                          la pantalla sin barras negras
+   *
+   *  hero-bg-mobile.mp4   — portrait 540×960, mitad de resolución del original,
+   *                          CRF 28, 24fps  → object-fit: cover llena el viewport
+   *                          móvil perfectamente sin escalar de más
+   */
+  const videoSrc = isMobile
+    ? "/videos/hero-bg-mobile.mp4"
+    : "/videos/hero-bg-desktop.mp4";
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+
       {/* Video Background */}
       <div className="absolute inset-0 z-0">
 
         {/*
-         * Fallback gradient visible INSTANTLY before video loads.
-         * Matches the marino profundo of the new branding.
-         * Fades out smoothly when video is ready.
+         * Fallback gradient — visible instantáneamente antes de que cargue el
+         * video. Coincide con la paleta marino del video "spm azul".
+         * Se desvanece cuando el video está listo.
          */}
         <div
           aria-hidden
@@ -65,20 +81,18 @@ export default function HeroSection() {
         />
 
         {/*
-         * Video — "spm azul.mp4" (6.1 MB)
-         *
-         * Mobile optimizations:
-         *   preload="none"  → no bytes downloaded until play is triggered
-         *   poster          → logo shown immediately (LCP asset)
-         *   playsInline     → required for iOS autoplay
-         *   delayed play    → 600ms after mount to avoid blocking LCP
-         *
-         * Desktop:
-         *   preload="metadata"  → fetch just enough to get duration/dimensions
-         *   plays immediately after canplay fires
+         * <video> optimizado:
+         *   poster         → frame estático JPG (5KB) para LCP inmediato
+         *   preload        → "none" en móvil (ahorra datos hasta que se hace play),
+         *                    "metadata" en desktop (solo cabeceras)
+         *   playsInline    → requerido para autoplay en iOS
+         *   muted + loop   → video de fondo en bucle sin sonido
+         *   object-fit     → "cover" en ambos: cada archivo ya tiene la relación de
+         *                    aspecto correcta para su viewport
          */}
         <video
           ref={videoRef}
+          key={videoSrc}           /* fuerza remount cuando cambia el src */
           className={`w-full h-full transition-opacity duration-1000 ${
             videoLoaded ? "opacity-100" : "opacity-0"
           }`}
@@ -87,31 +101,22 @@ export default function HeroSection() {
           loop
           playsInline
           preload={isMobile ? "none" : "metadata"}
-          poster="/images/logo.png"
+          poster="/videos/hero-poster.jpg"
           onCanPlay={() => setVideoLoaded(true)}
-          style={{
-            /*
-             * Desktop (landscape): object-fit cover fills the viewport perfectly.
-             * Mobile  (portrait):  object-fit contain shows the FULL video frame —
-             *   same view as desktop. The unused space (above/below) is filled by
-             *   the dark-blue background div already in the DOM, matching the brand.
-             */
-            objectFit:     isMobile ? "contain" : "cover",
-            objectPosition:"center center",
-            backgroundColor:"#0A1428", // marino profundo — visible on mobile letterbox
-          }}
           onLoadedData={() => setVideoLoaded(true)}
+          style={{
+            objectFit: "cover",
+            objectPosition: "center center",
+            backgroundColor: "#071428",
+          }}
         >
-          <source src="/videos/hero-bg.mp4" type="video/mp4" />
+          <source src={videoSrc} type="video/mp4" />
         </video>
 
-        {/* Dark overlay for text readability — stronger on mobile */}
-        <div
-          className="absolute inset-0 hero-video-overlay"
-          style={isMobile ? { opacity: 1.15 } : undefined}
-        />
+        {/* Overlay oscuro para legibilidad del texto */}
+        <div className="absolute inset-0 hero-video-overlay" />
 
-        {/* Brand glow blobs — subtle, matches new blue palette */}
+        {/* Glows de marca — paleta azul SPM */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-700/10 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-green-700/8 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1.2s" }} />
@@ -121,6 +126,7 @@ export default function HeroSection() {
       {/* Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 lg:pt-32 lg:pb-20">
         <div className="text-center">
+
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 mb-6 sm:mb-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-xs sm:text-sm font-medium">
             <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse flex-shrink-0" />
@@ -141,7 +147,7 @@ export default function HeroSection() {
             {t("hero_subtitle")}
           </p>
 
-          {/* Feature Pills — ocultas en mobile XS para ahorrar espacio */}
+          {/* Feature Pills — ocultas en mobile XS */}
           <div className="hidden sm:flex flex-wrap items-center justify-center gap-3 mb-8 sm:mb-10">
             {features.map(({ icon: Icon, text }) => (
               <div
