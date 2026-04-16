@@ -5,20 +5,35 @@
    ============================================================ */
 
 @theme {
-  /* Brand Colors */
-  --color-spm-red: #DC2626;
-  --color-spm-red-dark: #B91C1C;
-  --color-spm-red-light: #EF4444;
-  --color-spm-orange: #F97316;
-  --color-spm-orange-dark: #EA580C;
-  --color-spm-dark: #0F172A;
-  --color-spm-charcoal: #1E293B;
-  --color-spm-slate: #334155;
+  /*
+   * ── SanPedroMotoCare Brand Palette (v2 — Nuevo Logo Oficial) ──
+   * Primary: Azul eléctrico del logo   #1D4ED8 / #1E40AF
+   * Accent:  Verde tech de los nodos   #16A34A / #22C55E
+   * Dark:    Marino profundo del fondo #0F172A
+   *
+   * Aliases --color-spm-red / --color-spm-orange se mantienen como nombres
+   * de variable para no romper referencias existentes en componentes,
+   * pero ahora apuntan a los nuevos tonos del branding.
+   */
+
+  /* Core brand — azul eléctrico */
+  --color-spm-red:        #1D4ED8;   /* botones primarios, CTA, highlights */
+  --color-spm-red-dark:   #1E40AF;   /* hover state */
+  --color-spm-red-light:  #3B82F6;   /* estados activos claros */
+
+  /* Accent — verde tech (nodos del logo) */
+  --color-spm-orange:     #16A34A;   /* accent, badges secundarios */
+  --color-spm-orange-dark:#15803D;   /* hover accent */
+
+  /* Neutrales oscuros */
+  --color-spm-dark:      #0F172A;
+  --color-spm-charcoal:  #1E293B;
+  --color-spm-slate:     #334155;
 
   /* Semantic Palette */
-  --color-primary: var(--color-spm-red);
+  --color-primary:       var(--color-spm-red);
   --color-primary-hover: var(--color-spm-red-dark);
-  --color-accent: var(--color-spm-orange);
+  --color-accent:        var(--color-spm-orange);
 
   /* Typography */
   --font-display: "Poppins", system-ui, sans-serif;
@@ -42,8 +57,8 @@
 }
 
 @keyframes glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(220, 38, 38, 0.6); }
+  0%, 100% { box-shadow: 0 0 20px rgba(29, 78, 216, 0.35); }
+  50%       { box-shadow: 0 0 40px rgba(29, 78, 216, 0.65); }
 }
 
 @keyframes slideUp {
@@ -106,9 +121,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Gradient text utility */
+/* Gradient text — azul eléctrico → verde tech (paleta logo oficial) */
 .gradient-text {
-  background: linear-gradient(135deg, #DC2626, #F97316);
+  background: linear-gradient(135deg, #1D4ED8 0%, #3B82F6 50%, #16A34A 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -137,33 +152,33 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #DC2626;
+  background: #1D4ED8;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #B91C1C;
+  background: #1E40AF;
 }
 
 /* Focus ring */
 :focus-visible {
-  outline: 2px solid #DC2626;
+  outline: 2px solid #1D4ED8;
   outline-offset: 2px;
 }
 
 /* Selection */
 ::selection {
-  background: rgba(220, 38, 38, 0.2);
+  background: rgba(29, 78, 216, 0.2);
   color: inherit;
 }
 
-/* Video hero overlay */
+/* Video hero overlay — marino profundo del nuevo branding */
 .hero-video-overlay {
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.55) 0%,
-    rgba(15, 23, 42, 0.7) 60%,
-    rgba(15, 23, 42, 0.95) 100%
+    rgba(0, 0, 0, 0.50) 0%,
+    rgba(10, 20, 50, 0.68) 55%,
+    rgba(10, 20, 50, 0.92) 100%
   );
 }
 

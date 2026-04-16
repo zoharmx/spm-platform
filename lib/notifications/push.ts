@@ -16,15 +16,7 @@
  *   4. When token refreshes, onTokenRefresh() updates Firestore
  */
 
-import { getAdminAuth } from "@/lib/firebase-admin";
-import { getApps, getApp } from "firebase-admin/app";
-import { getMessaging } from "firebase-admin/messaging";
-
-function getAdminMessaging() {
-  const app = getApps().length > 0 ? getApp() : null;
-  if (!app) throw new Error("Firebase Admin not initialized");
-  return getMessaging(app);
-}
+import { getAdminAuth, getAdminMessaging } from "@/lib/firebase-admin";
 
 export interface PushPayload {
   token: string;
@@ -46,9 +38,7 @@ export interface PushResult {
  */
 export async function sendPush(payload: PushPayload): Promise<PushResult> {
   try {
-    // Ensure admin is initialized
-    getAdminAuth();
-
+    getAdminAuth(); // ensure Admin SDK is initialized
     const messaging = getAdminMessaging();
     const messageId = await messaging.send({
       token: payload.token,

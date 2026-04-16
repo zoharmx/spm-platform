@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut as firebaseSignOut,
@@ -183,15 +184,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Compatible con Edge, Safari, móvil y cualquier política de seguridad.
    * La respuesta se recibe en onAuthStateChanged cuando el navegador vuelve.
    */
+  /**
+   * Sign in with Google — tries popup first (same-page, no redirect loop risk).
+   * Falls back to redirect if the popup is blocked or not supported.
+   * Popup is preferred because it avoids the redirect → __auth cookie timing issue.
+   */
   async function signInWithGoogle() {
-    const auth = getFirebaseAuth();
+    const auth     = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    // Mark that WE initiated this redirect so getRedirectResult is only
-    // processed on the way back — avoids surfacing stale errors from prior
-    // failed attempts stored in Firebase's IndexedDB.
-    sessionStorage.setItem("spm_auth_redirect", "1");
-    await signInWithRedirect(auth, provider);
+
+    try {
+      // Popup: resolves on the same page — onAuthStateChanged fires here,
+      // sets __auth cookie, THEN LoginPage redirects. No loop possible.
+      await signInWithPopup(auth, provider);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+
+      if (code === "auth/popup-blocked" || code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // Popup was blocked by the browser — fall back to redirect
+        sessionStorage.setItem("spm_auth_redirect", "1");
+        await signInWithRedirect(auth, provider);
+        // signInWithRedirect navigates away — code below never runs
+      } else {
+        // Real error (unauthorized-domain, etc.) — re-throw so LoginPage can show it
+        throw err;
+      }
+    }
   }
 
   async function signOut() {
