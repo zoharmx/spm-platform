@@ -13,13 +13,13 @@ import {
 
 function formatDate(ts: unknown): string {
   if (!ts) return "—";
-  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function formatMonth(ts: unknown): string {
   if (!ts) return "—";
-  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
   return d.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
 }
 
@@ -42,7 +42,7 @@ export default function FacturasPage() {
     invoices.forEach(inv => {
       const ts = inv.paidAt ?? inv.updatedAt;
       if (ts) {
-        const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+        const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
         set.add(d.getFullYear());
       }
     });
@@ -62,7 +62,7 @@ export default function FacturasPage() {
       const ts = inv.paidAt ?? inv.updatedAt;
       let matchDate = true;
       if (ts) {
-        const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+        const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
         if (yearFilter) matchDate = d.getFullYear() === yearFilter;
         if (matchDate && monthFilter > 0) matchDate = d.getMonth() + 1 === monthFilter;
       }

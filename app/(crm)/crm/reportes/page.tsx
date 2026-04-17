@@ -20,13 +20,13 @@ const COLORS = ["#DC2626", "#F97316", "#3B82F6", "#10B981", "#8B5CF6", "#EC4899"
 
 function getMonthKey(ts: unknown): string {
   if (!ts) return "—";
-  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
   return d.toLocaleDateString("es-MX", { month: "short", year: "2-digit" });
 }
 
 function getMonthIndex(ts: unknown): number {
   if (!ts) return -1;
-  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+  const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
   return d.getFullYear() * 12 + d.getMonth();
 }
 
@@ -50,7 +50,7 @@ export default function ReportesPage() {
     tickets.filter(t => {
       const ts = t.createdAt;
       if (!ts) return true;
-      const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as string);
+      const d = (ts as { toDate?: () => Date }).toDate?.() ?? new Date(ts as unknown as string);
       return d >= cutoff;
     }),
     [tickets, cutoff]
@@ -196,7 +196,7 @@ export default function ReportesPage() {
                 <YAxis tick={{ fontSize: 11, fill: isDark ? "#94a3b8" : "#64748b" }}
                   tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
                 <Tooltip contentStyle={tooltipStyle}
-                  formatter={(v: number) => [`$${v.toLocaleString("es-MX")}`, "Ingresos"]} />
+                  formatter={(v) => [`$${Number(v).toLocaleString("es-MX")}`, "Ingresos"]} />
                 <Bar dataKey="revenue" fill="#DC2626" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -215,7 +215,7 @@ export default function ReportesPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                     labelLine={{ stroke: isDark ? "#475569" : "#cbd5e1" }}
                   >
                     {byStatus.map((_, i) => (
