@@ -78,57 +78,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const auth = getFirebaseAuth();
     let unsubscribe: (() => void) | null = null;
 
-    // authStateReady() waits until Firebase has fully determined the initial
-    // auth state — including processing any pending signInWithRedirect result
-    // stored in IndexedDB. Without this, onAuthStateChanged fires with null
-    // first, protected pages see !user and redirect to /login, creating a loop.
-    auth.authStateReady().then(() => {
-      // Only check redirect errors when we initiated the redirect
+    /**
+     * Initialization sequence (order is critical):
+     *
+     * 1. authStateReady() — waits until the CACHED auth state is known
+     *    (existing session from localStorage/IndexedDB). Does NOT wait for
+     *    signInWithRedirect to complete.
+     *
+     * 2. getRedirectResult() — MUST be awaited BEFORE registering
+     *    onAuthStateChanged. Firebase does not complete the redirect sign-in
+     *    until this is called. If called after onAuthStateChanged, the listener
+     *    fires with null first (redirect still pending), causing a login loop.
+     *    Calling it unconditionally is safe: returns null when no redirect is
+     *    pending and handles cases where sessionStorage was cleared.
+     *
+     * 3. onAuthStateChanged — by this point the auth state is definitive:
+     *    the redirect (if any) is processed and the user is either signed in
+     *    or not. The listener fires exactly once with the correct state.
+     */
+    async function initialize() {
+      await auth.authStateReady();
+
+      // Process any pending signInWithRedirect result.
+      // Called unconditionally — safe if no redirect is pending (returns null).
       const redirectPending = sessionStorage.getItem("spm_auth_redirect") === "1";
-      if (redirectPending) {
-        sessionStorage.removeItem("spm_auth_redirect");
-        getRedirectResult(auth).catch((err: { code?: string }) => {
-          const code = err?.code ?? "auth/unknown";
-          if (code !== "auth/no-auth-event") {
-            setRedirectError(code);
-          }
-        });
+      try {
+        await getRedirectResult(auth);
+        if (redirectPending) sessionStorage.removeItem("spm_auth_redirect");
+      } catch (err: unknown) {
+        if (redirectPending) sessionStorage.removeItem("spm_auth_redirect");
+        const code = (err as { code?: string })?.code ?? "auth/unknown";
+        if (code !== "auth/no-auth-event") {
+          setRedirectError(code);
+        }
       }
 
+      // Auth state is now definitive — register the listener.
       unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
-      if (fbUser) {
-        setAuthPresenceCookie(fbUser.uid);
-        // Best-effort — failures must never block the auth flow
-        try {
-          await syncSessionCookie(fbUser);
-        } catch {
-          // continue — __auth fallback cookie already set above
+        setFirebaseUser(fbUser);
+        if (fbUser) {
+          setAuthPresenceCookie(fbUser.uid);
+          try { await syncSessionCookie(fbUser); } catch { /* non-fatal */ }
+          try {
+            const spmUser = await fetchOrCreateUser(fbUser);
+            setUser(spmUser);
+          } catch (err) {
+            console.error("[Auth] fetchOrCreateUser failed:", err);
+            setUser({
+              id: fbUser.uid,
+              uid: fbUser.uid,
+              email: fbUser.email ?? "",
+              displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
+              role: "viewer",
+              isActive: true,
+              ...(fbUser.photoURL ? { photoURL: fbUser.photoURL } : {}),
+            } as import("@/types").SPMUser);
+          }
+        } else {
+          clearAuthPresenceCookie();
+          setUser(null);
         }
-        try {
-          const spmUser = await fetchOrCreateUser(fbUser);
-          setUser(spmUser);
-        } catch (err) {
-          console.error("[Auth] fetchOrCreateUser failed:", err);
-          // Still mark user as authenticated with minimal info so the
-          // redirect to portal happens — portal will handle missing profile
-          setUser({
-            id: fbUser.uid,
-            uid: fbUser.uid,
-            email: fbUser.email ?? "",
-            displayName: fbUser.displayName ?? fbUser.email ?? "Usuario",
-            role: "viewer",
-            isActive: true,
-            ...(fbUser.photoURL ? { photoURL: fbUser.photoURL } : {}),
-          } as import("@/types").SPMUser);
-        }
-      } else {
-        clearAuthPresenceCookie();
-        setUser(null);
-      }
         setLoading(false);
       });
-    });
+    }
+
+    initialize();
 
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
