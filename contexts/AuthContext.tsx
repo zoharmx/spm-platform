@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut as firebaseSignOut,
@@ -193,19 +194,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Sign in with Google using redirect flow (no popup).
-   * Redirect avoids COOP/window.close warnings and works on all browsers
-   * including mobile Safari and strict security environments.
-   * The result is processed by getRedirectResult() on the next load inside
-   * the authStateReady() block above.
+   * Sign in with Google — popup first, redirect fallback.
+   * Popup is reliable and resolves on the same page (no redirect loop risk).
+   * Falls back to redirect only if the popup is explicitly blocked.
    */
   async function signInWithGoogle() {
     const auth     = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    sessionStorage.setItem("spm_auth_redirect", "1");
-    await signInWithRedirect(auth, provider);
-    // signInWithRedirect navigates away — nothing runs after this line
+
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/popup-closed-by-user" ||
+        code === "auth/cancelled-popup-request"
+      ) {
+        // Popup blocked — fall back to redirect
+        sessionStorage.setItem("spm_auth_redirect", "1");
+        await signInWithRedirect(auth, provider);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async function signOut() {
