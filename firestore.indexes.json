@@ -1,0 +1,41 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "service_tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status",    "order": "ASCENDING"  },
+        { "fieldPath": "paidAt",    "order": "DESCENDING" },
+        { "fieldPath": "__name__",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "service_tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientEmail", "order": "ASCENDING"  },
+        { "fieldPath": "createdAt",   "order": "DESCENDING" },
+        { "fieldPath": "__name__",    "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "service_tickets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId",  "order": "ASCENDING"  },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "motorcycles",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId",  "order": "ASCENDING"  },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__",  "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

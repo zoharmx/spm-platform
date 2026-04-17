@@ -1,0 +1,101 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function hasRole(minimum) {
+      let weights = {
+        'viewer':   1,
+        'mecanico': 2,
+        'operador': 3,
+        'manager':  4,
+        'admin':    5
+      };
+      return isAuth() && weights[userRole()] >= weights[minimum];
+    }
+
+    // ── Public read: tracking uses Admin SDK (bypasses rules) ───────────────
+
+    // ── Users ───────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Anyone authenticated can read their own profile
+      allow read: if isAuth() && request.auth.uid == userId;
+      // Managers can read all user profiles (for role management UI)
+      allow read: if hasRole('manager');
+      // Users can write their own profile (e.g. update FCM token)
+      allow write: if isAuth() && request.auth.uid == userId;
+      // Admins can update any user's role
+      allow write: if hasRole('admin');
+    }
+
+    // ── Service Tickets ─────────────────────────────────────────────────────
+    match /service_tickets/{ticketId} {
+      // Operators can read and write all tickets
+      allow read, write: if hasRole('operador');
+      // Mechanics can read tickets assigned to them and update status
+      allow read: if isAuth() && resource.data.mechanicId == request.auth.uid;
+      allow update: if isAuth() && resource.data.mechanicId == request.auth.uid;
+      // Clients can read their own tickets
+      allow read: if isAuth() && (
+        resource.data.clientEmail == request.auth.token.email ||
+        resource.data.clientId == request.auth.uid
+      );
+      // Quotes API creates tickets server-side via Admin SDK (bypasses rules)
+    }
+
+    // ── Clients ─────────────────────────────────────────────────────────────
+    match /clients/{clientId} {
+      allow read, write: if hasRole('operador');
+      // A viewer can read their own client record
+      allow read: if isAuth() && resource.data.uid == request.auth.uid;
+    }
+
+    // ── Mechanics ───────────────────────────────────────────────────────────
+    match /mechanics/{mechanicId} {
+      allow read: if isAuth();
+      allow write: if hasRole('manager');
+    }
+
+    // ── Motorcycles ─────────────────────────────────────────────────────────
+    match /motorcycles/{motoId} {
+      // Clients manage their own motorcycles
+      allow read, write: if isAuth() && (
+        resource == null ||
+        resource.data.clientId == request.auth.uid
+      );
+      // Operators can read all motorcycles
+      allow read: if hasRole('operador');
+    }
+
+    // ── Platform settings ───────────────────────────────────────────────────
+    match /settings/{document} {
+      // Any authenticated user can read settings (needed for anticipo default, etc.)
+      allow read: if isAuth();
+      // Only managers and admins can write settings
+      allow write: if hasRole('manager');
+    }
+
+    // ── Atomic counters ─────────────────────────────────────────────────────
+    match /_counters/{document} {
+      // Managed exclusively by Admin SDK (server-side); deny all client access
+      allow read, write: if false;
+    }
+
+    // ── Chat / lead data ────────────────────────────────────────────────────
+    match /leads/{leadId} {
+      allow read: if hasRole('operador');
+      // Leads are created server-side via Admin SDK
+      allow write: if false;
+    }
+
+  }
+}
