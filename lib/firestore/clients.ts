@@ -20,6 +20,11 @@ export async function createClient(data: {
   lastName: string;
   phone: string;
   email?: string;
+  motoBrand?: string;
+  motoModel?: string;
+  motoYear?: number;
+  motoColor?: string;
+  motoPlaca?: string;
 }): Promise<void> {
   const db = getDb();
   const { runTransaction, doc: fsDoc } = await import("firebase/firestore");
@@ -33,9 +38,16 @@ export async function createClient(data: {
     tx.set(counterRef, { count }, { merge: true });
   });
 
+  const { motoBrand, motoModel, motoYear, motoColor, motoPlaca, ...clientData } = data;
+
   await addDoc(collection(db, COL), {
     clientId,
-    ...data,
+    ...clientData,
+    ...(motoBrand ? { motoBrand } : {}),
+    ...(motoModel ? { motoModel } : {}),
+    ...(motoYear ? { motoYear } : {}),
+    ...(motoColor ? { motoColor } : {}),
+    ...(motoPlaca ? { motoPlaca } : {}),
     type: "individual",
     totalTickets: 0,
     totalPaid: 0,

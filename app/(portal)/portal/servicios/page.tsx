@@ -64,8 +64,13 @@ export default function ServiciosPage() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeTickets(all => {
+      const email = user.email?.toLowerCase();
+      const phone = user.phone;
       setTickets(
-        all.filter(t => t.clientEmail === user.email || t.clientPhone === user.phone)
+        all.filter(t =>
+          (email && t.clientEmail?.toLowerCase() === email) ||
+          (phone && t.clientPhone === phone)
+        )
       );
       setFetching(false);
     });

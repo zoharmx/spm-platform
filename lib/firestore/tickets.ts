@@ -1,5 +1,5 @@
 import {
-  collection, doc, onSnapshot, updateDoc, addDoc,
+  collection, doc, onSnapshot, updateDoc, addDoc, getDoc,
   serverTimestamp, query, orderBy, Timestamp, increment,
   type Unsubscribe,
 } from "firebase/firestore";
@@ -38,8 +38,7 @@ export async function advanceTicketStatus(
     userId,
   };
 
-  const { getDoc: fsGetDoc } = await import("firebase/firestore");
-  const snap = await fsGetDoc(ref);
+  const snap = await getDoc(ref);
   const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
 
   await updateDoc(ref, {
@@ -57,7 +56,7 @@ export async function assignMechanic(
   mechanicName: string
 ): Promise<void> {
   const db = getDb();
-  await updateDoc(doc(db, COL, mechanicId ? ticketId : ticketId), {
+  await updateDoc(doc(db, COL, ticketId), {
     mechanicId: mechanicId || null,
     mechanicName: mechanicName || null,
     updatedAt: serverTimestamp(),
@@ -86,10 +85,14 @@ export async function createTicketDirect(data: {
   serviceDescription: string;
   serviceAddress: string;
   source?: string;
+  motoBrand?: string;
+  motoModel?: string;
+  motoYear?: number;
+  motoPlaca?: string;
 }): Promise<string> {
   const db = getDb();
 
-  const { getDoc, doc: fsDoc, runTransaction } = await import("firebase/firestore");
+  const { doc: fsDoc, runTransaction } = await import("firebase/firestore");
   const counterRef = fsDoc(db, "_counters", "service_tickets");
 
   let ticketId = "";
@@ -111,12 +114,15 @@ export async function createTicketDirect(data: {
     serviceDescription: data.serviceDescription,
     serviceAddress: { street: data.serviceAddress },
     source: data.source ?? "crm-directo",
+    ...(data.motoBrand ? { motoBrand: data.motoBrand } : {}),
+    ...(data.motoModel ? { motoModel: data.motoModel } : {}),
+    ...(data.motoYear ? { motoYear: data.motoYear } : {}),
+    ...(data.motoPlaca ? { motoPlaca: data.motoPlaca } : {}),
     statusHistory: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  // Increment client ticket counter
   await updateDoc(doc(db, "clients", data.clientId), {
     totalTickets: increment(1),
     updatedAt: serverTimestamp(),
@@ -134,7 +140,6 @@ export async function markAsPaidCash(
   const db = getDb();
   const ref = doc(db, COL, ticketId);
 
-  const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(ref);
   const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
   const event: TicketEvent = {
@@ -176,7 +181,6 @@ export async function recordPayment(
 ): Promise<void> {
   const db = getDb();
   const ref = doc(db, COL, ticketId);
-  const { getDoc } = await import("firebase/firestore");
   const snap = await getDoc(ref);
   const data = snap.data();
   const existingPayments: TicketPayment[] = data?.payments ?? [];

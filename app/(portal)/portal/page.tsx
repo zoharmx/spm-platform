@@ -40,9 +40,14 @@ export default function PortalPage() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeTickets(all => {
+      const email = user.email?.toLowerCase();
+      const phone = user.phone;
       setMyTickets(
         all
-          .filter(t => t.clientEmail === user.email || t.clientPhone === user.phone)
+          .filter(t =>
+            (email && t.clientEmail?.toLowerCase() === email) ||
+            (phone && t.clientPhone === phone)
+          )
           .slice(0, 5)
       );
       setTicketsLoading(false);

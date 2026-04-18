@@ -111,16 +111,16 @@ function CreateTicketModal({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [form, setForm] = useState({
     serviceType: "diagnostico", serviceDescription: "", serviceAddress: "",
+    motoBrand: "", motoModel: "", motoYear: "", motoPlaca: "",
   });
   const [loading, setLoading] = useState(false);
 
-  // Reset on close
   useEffect(() => {
     if (!open) {
       setSelectedClient(null);
       setClientSearch("");
       setDropdownOpen(false);
-      setForm({ serviceType: "diagnostico", serviceDescription: "", serviceAddress: "" });
+      setForm({ serviceType: "diagnostico", serviceDescription: "", serviceAddress: "", motoBrand: "", motoModel: "", motoYear: "", motoPlaca: "" });
     }
   }, [open]);
 
@@ -162,6 +162,10 @@ function CreateTicketModal({
         serviceDescription: form.serviceDescription,
         serviceAddress: form.serviceAddress,
         source: "crm-directo",
+        ...(form.motoBrand ? { motoBrand: form.motoBrand } : {}),
+        ...(form.motoModel ? { motoModel: form.motoModel } : {}),
+        ...(form.motoYear ? { motoYear: Number(form.motoYear) } : {}),
+        ...(form.motoPlaca ? { motoPlaca: form.motoPlaca.toUpperCase() } : {}),
       });
       toast.success(`Ticket ${id} creado`);
       onClose();
@@ -283,8 +287,25 @@ function CreateTicketModal({
               onChange={e => setForm(p => ({ ...p, serviceAddress: e.target.value }))} />
           </div>
 
+          {/* Datos de la motocicleta */}
           <div>
-            <label className={labelCls}>Descripción del problema *</label>
+            <label className={labelCls}>Motocicleta</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={inputCls} placeholder="Marca (Honda, Yamaha...)"
+                value={form.motoBrand} onChange={e => setForm(p => ({ ...p, motoBrand: e.target.value }))} />
+              <input className={inputCls} placeholder="Modelo (CB500F, R3...)"
+                value={form.motoModel} onChange={e => setForm(p => ({ ...p, motoModel: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <input type="number" className={inputCls} placeholder="Año" min={1950} max={2027}
+                value={form.motoYear} onChange={e => setForm(p => ({ ...p, motoYear: e.target.value }))} />
+              <input className={inputCls + " uppercase font-mono"} placeholder="Placa (ABC-1234)"
+                value={form.motoPlaca} onChange={e => setForm(p => ({ ...p, motoPlaca: e.target.value }))} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Descripcion del problema *</label>
             <textarea rows={3} className={inputCls + " resize-none"} placeholder="Describe el problema..."
               value={form.serviceDescription}
               onChange={e => setForm(p => ({ ...p, serviceDescription: e.target.value }))} />

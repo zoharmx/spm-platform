@@ -43,9 +43,11 @@ function PagarContent() {
   useEffect(() => {
     if (!user) return;
     const unsub = subscribeTickets((all) => {
-      // Only show tickets that belong to this user AND have a payment link OR are unpaid
+      const email = user.email?.toLowerCase();
+      const phone = user.phone;
       const mine = all.filter(t =>
-        (t.clientEmail === user.email || t.clientPhone) &&
+        ((email && t.clientEmail?.toLowerCase() === email) ||
+         (phone && t.clientPhone === phone)) &&
         (t.status === "completado" || t.status === "pagado")
       );
       setTickets(mine);

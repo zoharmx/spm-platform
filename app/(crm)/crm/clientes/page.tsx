@@ -15,17 +15,27 @@ function formatDate(ts: unknown): string {
 }
 
 function CreateClientModal({ open, onClose, isDark }: { open: boolean; onClose: () => void; isDark: boolean }) {
-  const [form, setForm] = useState({ name: "", lastName: "", phone: "", email: "" });
+  const [form, setForm] = useState({
+    name: "", lastName: "", phone: "", email: "",
+    motoBrand: "", motoModel: "", motoYear: "", motoColor: "", motoPlaca: "",
+  });
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.phone) { toast.error("Nombre y teléfono son requeridos"); return; }
+    if (!form.name || !form.phone) { toast.error("Nombre y telefono son requeridos"); return; }
     setLoading(true);
     try {
-      await createClient({ name: form.name, lastName: form.lastName, phone: form.phone, email: form.email || undefined });
+      await createClient({
+        name: form.name, lastName: form.lastName, phone: form.phone, email: form.email || undefined,
+        motoBrand: form.motoBrand || undefined,
+        motoModel: form.motoModel || undefined,
+        motoYear: form.motoYear ? Number(form.motoYear) : undefined,
+        motoColor: form.motoColor || undefined,
+        motoPlaca: form.motoPlaca ? form.motoPlaca.toUpperCase() : undefined,
+      });
       toast.success("Cliente creado");
-      setForm({ name: "", lastName: "", phone: "", email: "" });
+      setForm({ name: "", lastName: "", phone: "", email: "", motoBrand: "", motoModel: "", motoYear: "", motoColor: "", motoPlaca: "" });
       onClose();
     } catch { toast.error("Error al crear cliente"); }
     finally { setLoading(false); }
@@ -38,7 +48,7 @@ function CreateClientModal({ open, onClose, isDark }: { open: boolean; onClose: 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative w-full max-w-md rounded-2xl shadow-2xl ${isDark ? "bg-slate-900" : "bg-white"}`}>
+      <div className={`relative w-full max-w-md rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto ${isDark ? "bg-slate-900" : "bg-white"}`}>
         <div className={`flex items-center justify-between p-5 border-b ${isDark ? "border-white/5" : "border-gray-100"}`}>
           <h3 className={`font-display font-bold text-lg ${isDark ? "text-white" : "text-slate-900"}`}>Nuevo Cliente</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-200 p-1"><X size={18} /></button>
@@ -51,17 +61,35 @@ function CreateClientModal({ open, onClose, isDark }: { open: boolean; onClose: 
             </div>
             <div>
               <label className={labelCls}>Apellido</label>
-              <input className={inputCls} placeholder="García" value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} />
+              <input className={inputCls} placeholder="Garcia" value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} />
             </div>
           </div>
           <div>
-            <label className={labelCls}>Teléfono *</label>
+            <label className={labelCls}>Telefono *</label>
             <input className={inputCls} placeholder="+52 81 0000-0000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
           </div>
           <div>
             <label className={labelCls}>Email</label>
             <input type="email" className={inputCls} placeholder="cliente@email.com" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
           </div>
+
+          {/* Datos de la motocicleta */}
+          <div className={`p-4 rounded-xl border ${isDark ? "border-white/5 bg-slate-800/30" : "border-gray-100 bg-slate-50"}`}>
+            <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Motocicleta (opcional)
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={inputCls} placeholder="Marca" value={form.motoBrand} onChange={e => setForm(p => ({ ...p, motoBrand: e.target.value }))} />
+              <input className={inputCls} placeholder="Modelo" value={form.motoModel} onChange={e => setForm(p => ({ ...p, motoModel: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              <input type="number" className={inputCls} placeholder="Año" min={1950} max={2027}
+                value={form.motoYear} onChange={e => setForm(p => ({ ...p, motoYear: e.target.value }))} />
+              <input className={inputCls} placeholder="Color" value={form.motoColor} onChange={e => setForm(p => ({ ...p, motoColor: e.target.value }))} />
+              <input className={inputCls + " uppercase font-mono"} placeholder="Placa" value={form.motoPlaca} onChange={e => setForm(p => ({ ...p, motoPlaca: e.target.value }))} />
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
               className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-200 text-slate-600 hover:bg-gray-50"}`}>
