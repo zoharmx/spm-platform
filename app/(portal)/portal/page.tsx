@@ -136,6 +136,46 @@ export default function PortalPage() {
           ))}
         </div>
 
+        {/* Poliza de Mantenimiento para Repartidores */}
+        <a
+          href="https://buy.stripe.com/test_14A6oAbSo6bm8XZ5imfQI00"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`block rounded-2xl border overflow-hidden mb-8 hover:scale-[1.01] transition-all ${
+            isDark ? "bg-gradient-to-r from-emerald-950 to-slate-900 border-emerald-800/30" : "bg-gradient-to-r from-emerald-50 to-white border-emerald-200 shadow-sm"
+          }`}
+        >
+          <div className="flex items-center gap-4 p-5">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${
+              isDark ? "bg-emerald-500/20" : "bg-emerald-100"
+            }`}>
+              <span className="text-2xl">🛵</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className={`font-display font-bold text-base ${isDark ? "text-white" : "text-slate-900"}`}>
+                  Poliza de Mantenimiento para Repartidores
+                </h3>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                  isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+                }`}>
+                  NUEVO
+                </span>
+              </div>
+              <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Mantenimiento preventivo mensual para tu moto de trabajo. Diagnostico, ajustes y prioridad en servicio.
+              </p>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <p className={`font-display font-bold text-2xl ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
+                $99
+              </p>
+              <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>MXN/mes</p>
+            </div>
+            <ExternalLink size={16} className={`flex-shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`} />
+          </div>
+        </a>
+
         {/* Track a ticket */}
         <div className={`rounded-2xl border p-5 mb-6 ${isDark ? "bg-slate-900 border-white/5" : "bg-white border-gray-100 shadow-sm"}`}>
           <h2 className={`font-semibold text-base mb-3 ${isDark ? "text-white" : "text-slate-900"}`}>

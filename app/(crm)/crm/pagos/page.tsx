@@ -10,7 +10,7 @@ import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS, SERVICE_LABELS } from "@/ty
 import {
   CreditCard, DollarSign, Search, X, Loader2,
   CheckCircle2, Clock, Receipt, ArrowUpRight,
-  Banknote, Building, Filter,
+  Banknote, Building, Filter, ExternalLink, Copy,
 } from "lucide-react";
 import { generatePaymentReceiptPDF } from "@/lib/invoice-pdf";
 import toast, { Toaster } from "react-hot-toast";
@@ -394,6 +394,44 @@ export default function PagosPage() {
               <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{label}</p>
             </div>
           ))}
+        </div>
+
+        {/* Poliza de Mantenimiento — link compartible */}
+        <div className={`flex items-center gap-4 p-4 rounded-2xl border ${
+          isDark ? "bg-emerald-950/20 border-emerald-800/30" : "bg-emerald-50 border-emerald-200"
+        }`}>
+          <span className="text-2xl flex-shrink-0">🛵</span>
+          <div className="flex-1 min-w-0">
+            <p className={`font-bold text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
+              Poliza de Mantenimiento para Repartidores — $99 MXN/mes
+            </p>
+            <p className={`text-xs mt-0.5 font-mono truncate ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              https://buy.stripe.com/test_14A6oAbSo6bm8XZ5imfQI00
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText("https://buy.stripe.com/test_14A6oAbSo6bm8XZ5imfQI00");
+              toast.success("Link copiado al portapapeles");
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 ${
+              isDark ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+            }`}
+          >
+            <Copy size={12} />
+            Copiar link
+          </button>
+          <a
+            href="https://buy.stripe.com/test_14A6oAbSo6bm8XZ5imfQI00"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 ${
+              isDark ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-white text-slate-700 hover:bg-gray-100 border border-gray-200"
+            }`}
+          >
+            <ExternalLink size={12} />
+            Abrir
+          </a>
         </div>
 
         {/* Toolbar */}

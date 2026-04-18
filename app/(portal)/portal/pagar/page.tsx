@@ -134,6 +134,31 @@ function PagarContent() {
           </div>
         </div>
 
+        {/* Poliza de Mantenimiento */}
+        <a
+          href="https://buy.stripe.com/test_14A6oAbSo6bm8XZ5imfQI00"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-4 p-4 rounded-2xl border mb-6 hover:scale-[1.01] transition-all ${
+            isDark ? "bg-emerald-950/30 border-emerald-800/30" : "bg-emerald-50 border-emerald-200"
+          }`}
+        >
+          <span className="text-2xl flex-shrink-0">🛵</span>
+          <div className="flex-1 min-w-0">
+            <p className={`font-bold text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
+              Poliza de Mantenimiento para Repartidores
+            </p>
+            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+              Mantenimiento preventivo mensual — $99 MXN/mes
+            </p>
+          </div>
+          <span className={`text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0 ${
+            isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-700"
+          }`}>
+            Suscribirse
+          </span>
+        </a>
+
         {fetching ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 size={28} className="animate-spin text-[var(--color-spm-red)]" />
