@@ -199,6 +199,7 @@ export interface ServiceTicket {
   // Payments — final service
   paymentLinkUrl?: string;      // Stripe Checkout Session URL
   stripeSessionId?: string;     // Stripe session ID for webhook matching
+  paymentMethod?: "stripe" | "efectivo";
   paidAt?: Timestamp;
   // Notifications
   lastWhatsAppSent?: Timestamp; // Prevent duplicate WA messages

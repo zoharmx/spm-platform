@@ -1,6 +1,6 @@
 import {
   collection, doc, onSnapshot, updateDoc, addDoc,
-  serverTimestamp, query, orderBy, Timestamp,
+  serverTimestamp, query, orderBy, Timestamp, increment,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
@@ -76,8 +76,9 @@ export async function updateTicketFields(
   });
 }
 
-/** Create a new ticket directly (CRM-initiated, not via quote form). */
+/** Create a new ticket directly (CRM-initiated, not via quote form). Requires a linked clientId. */
 export async function createTicketDirect(data: {
+  clientId: string;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
@@ -88,8 +89,7 @@ export async function createTicketDirect(data: {
 }): Promise<string> {
   const db = getDb();
 
-  // Get counter
-  const { getDoc, setDoc, doc: fsDoc, runTransaction } = await import("firebase/firestore");
+  const { getDoc, doc: fsDoc, runTransaction } = await import("firebase/firestore");
   const counterRef = fsDoc(db, "_counters", "service_tickets");
 
   let ticketId = "";
@@ -103,6 +103,7 @@ export async function createTicketDirect(data: {
   await addDoc(collection(db, COL), {
     ticketId,
     status: "lead-recibido",
+    clientId: data.clientId,
     clientName: data.clientName,
     clientPhone: data.clientPhone,
     ...(data.clientEmail ? { clientEmail: data.clientEmail } : {}),
@@ -115,5 +116,46 @@ export async function createTicketDirect(data: {
     updatedAt: serverTimestamp(),
   });
 
+  // Increment client ticket counter
+  await updateDoc(doc(db, "clients", data.clientId), {
+    totalTickets: increment(1),
+    updatedAt: serverTimestamp(),
+  });
+
   return ticketId;
+}
+
+/** Mark a ticket as paid in cash (no Stripe). Also updates client totalPaid. */
+export async function markAsPaidCash(
+  ticketId: string,
+  userId: string,
+  options?: { clientId?: string; finalCost?: number }
+): Promise<void> {
+  const db = getDb();
+  const ref = doc(db, COL, ticketId);
+
+  const { getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(ref);
+  const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
+  const event: TicketEvent = {
+    status: "pagado",
+    timestamp: Timestamp.now(),
+    note: "Pago en efectivo registrado",
+    userId,
+  };
+
+  await updateDoc(ref, {
+    status: "pagado",
+    paymentMethod: "efectivo",
+    paidAt: serverTimestamp(),
+    statusHistory: [...existing, event],
+    updatedAt: serverTimestamp(),
+  });
+
+  if (options?.clientId && options?.finalCost) {
+    await updateDoc(doc(db, "clients", options.clientId), {
+      totalPaid: increment(options.finalCost),
+      updatedAt: serverTimestamp(),
+    });
+  }
 }

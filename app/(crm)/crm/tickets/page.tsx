@@ -5,8 +5,10 @@ import CrmShell from "@/components/crm/CrmShell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  subscribeTickets, advanceTicketStatus, updateTicketFields, createTicketDirect,
+  subscribeTickets, advanceTicketStatus, updateTicketFields,
+  createTicketDirect, markAsPaidCash,
 } from "@/lib/firestore/tickets";
+import { subscribeClients } from "@/lib/firestore/clients";
 
 // ── Notification helpers ───────────────────────────────────────────────────
 async function notifyStatusChange(ticket: ServiceTicket, newStatus: ServiceTicketStatus, paymentLink?: string) {
@@ -53,7 +55,7 @@ async function sendPaymentLink(ticket: ServiceTicket): Promise<string | null> {
   }
 }
 import { subscribeMechanics } from "@/lib/firestore/mechanics";
-import type { ServiceTicket, ServiceTicketStatus, Mechanic } from "@/types";
+import type { ServiceTicket, ServiceTicketStatus, Mechanic, Client } from "@/types";
 import {
   STATUS_LABELS, STATUS_COLORS, SERVICE_LABELS, NEXT_STATUS,
 } from "@/types";
@@ -99,33 +101,66 @@ function formatDate(ts: unknown): string {
 
 // ── Create Ticket Modal ────────────────────────────────────────
 function CreateTicketModal({
-  open, onClose, isDark,
-}: { open: boolean; onClose: () => void; isDark: boolean }) {
+  open, onClose, isDark, clients,
+}: { open: boolean; onClose: () => void; isDark: boolean; clients: Client[] }) {
+  const [clientSearch, setClientSearch] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [form, setForm] = useState({
-    clientName: "", clientPhone: "", clientEmail: "",
     serviceType: "diagnostico", serviceDescription: "", serviceAddress: "",
   });
   const [loading, setLoading] = useState(false);
 
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setSelectedClient(null);
+      setClientSearch("");
+      setDropdownOpen(false);
+      setForm({ serviceType: "diagnostico", serviceDescription: "", serviceAddress: "" });
+    }
+  }, [open]);
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return clients.slice(0, 8);
+    const q = clientSearch.toLowerCase();
+    return clients.filter(c =>
+      `${c.name} ${c.lastName}`.toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      c.clientId.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [clients, clientSearch]);
+
+  function selectClient(c: Client) {
+    setSelectedClient(c);
+    setClientSearch("");
+    setDropdownOpen(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.clientName || !form.clientPhone || !form.serviceAddress || !form.serviceDescription) {
+    if (!selectedClient) {
+      toast.error("Selecciona un cliente registrado");
+      return;
+    }
+    if (!form.serviceAddress || !form.serviceDescription) {
       toast.error("Completa todos los campos requeridos");
       return;
     }
     setLoading(true);
     try {
+      const fullName = `${selectedClient.name} ${selectedClient.lastName}`.trim();
       const id = await createTicketDirect({
-        clientName: form.clientName,
-        clientPhone: form.clientPhone,
-        clientEmail: form.clientEmail || undefined,
+        clientId: selectedClient.id,
+        clientName: fullName,
+        clientPhone: selectedClient.phone,
+        clientEmail: selectedClient.email,
         serviceType: form.serviceType,
         serviceDescription: form.serviceDescription,
         serviceAddress: form.serviceAddress,
         source: "crm-directo",
       });
       toast.success(`Ticket ${id} creado`);
-      setForm({ clientName: "", clientPhone: "", clientEmail: "", serviceType: "diagnostico", serviceDescription: "", serviceAddress: "" });
       onClose();
     } catch (err) {
       console.error(err);
@@ -153,23 +188,80 @@ function CreateTicketModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 sm:col-span-1">
-              <label className={labelCls}>Nombre cliente *</label>
-              <input className={inputCls} placeholder="Juan García" value={form.clientName}
-                onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} />
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <label className={labelCls}>Teléfono *</label>
-              <input className={inputCls} placeholder="+52 81 0000-0000" value={form.clientPhone}
-                onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))} />
-            </div>
-          </div>
-
+          {/* ── Client selector ── */}
           <div>
-            <label className={labelCls}>Email (opcional)</label>
-            <input type="email" className={inputCls} placeholder="cliente@email.com" value={form.clientEmail}
-              onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} />
+            <label className={labelCls}>
+              Cliente *{" "}
+              <span className={`normal-case font-normal ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                (debe estar registrado)
+              </span>
+            </label>
+
+            {clients.length === 0 ? (
+              <div className={`flex items-center justify-between p-3 rounded-xl border border-dashed ${isDark ? "border-white/10 bg-slate-800/50" : "border-gray-200 bg-gray-50"}`}>
+                <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>Sin clientes registrados</p>
+                <a href="/crm/clientes" className="text-xs text-[var(--color-spm-red)] hover:underline font-semibold">
+                  Registrar cliente →
+                </a>
+              </div>
+            ) : selectedClient ? (
+              <div className={`flex items-center justify-between p-3 rounded-xl border ${isDark ? "border-emerald-900/40 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+                <div>
+                  <p className={`font-semibold text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
+                    {selectedClient.name} {selectedClient.lastName}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    {selectedClient.phone}
+                    {selectedClient.email && ` · ${selectedClient.email}`}
+                    {" · "}<span className="font-mono">{selectedClient.clientId}</span>
+                  </p>
+                </div>
+                <button type="button" onClick={() => setSelectedClient(null)}
+                  className="text-slate-400 hover:text-slate-200 p-1 ml-2 flex-shrink-0">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  className={inputCls}
+                  placeholder="Buscar por nombre o teléfono…"
+                  value={clientSearch}
+                  onChange={e => { setClientSearch(e.target.value); setDropdownOpen(true); }}
+                  onFocus={() => setDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setDropdownOpen(false), 180)}
+                />
+                {dropdownOpen && (
+                  <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-xl z-20 max-h-52 overflow-y-auto ${isDark ? "bg-slate-800 border-white/10" : "bg-white border-gray-200"}`}>
+                    {filteredClients.length === 0 ? (
+                      <div className="px-4 py-4 text-center space-y-1">
+                        <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>Sin resultados</p>
+                        <a href="/crm/clientes" className="text-xs text-[var(--color-spm-red)] hover:underline">
+                          Registrar nuevo cliente →
+                        </a>
+                      </div>
+                    ) : (
+                      filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => selectClient(c)}
+                          className={`w-full text-left px-4 py-3 flex items-center justify-between hover:bg-[var(--color-spm-red)]/10 transition-colors border-b last:border-0 ${isDark ? "border-white/5" : "border-gray-100"}`}
+                        >
+                          <div>
+                            <p className={`font-medium text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
+                              {c.name} {c.lastName}
+                            </p>
+                            <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{c.phone}</p>
+                          </div>
+                          <span className={`text-xs font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>{c.clientId}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -200,8 +292,8 @@ function CreateTicketModal({
               className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-200 text-slate-600 hover:bg-gray-50"}`}>
               Cancelar
             </button>
-            <button type="submit" disabled={loading}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+            <button type="submit" disabled={loading || !selectedClient || clients.length === 0}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2">
               {loading && <Loader2 size={14} className="animate-spin" />}
               Crear Ticket
             </button>
@@ -228,9 +320,10 @@ function TicketDrawer({
   const [costs, setCosts]         = useState({ estimated: "", final: "", anticipo: "" });
   const [diagnosis, setDiagnosis] = useState("");
   const [selectedMechanic, setSelectedMechanic] = useState("");
-  const [sendingLink, setSendingLink]       = useState(false);
+  const [sendingLink, setSendingLink]         = useState(false);
   const [sendingAnticipo, setSendingAnticipo] = useState(false);
-  const [anticipoAmount, setAnticipo]       = useState(200);
+  const [anticipoAmount, setAnticipo]         = useState(200);
+  const [markingCash, setMarkingCash]         = useState(false);
 
   useEffect(() => {
     if (ticket) {
@@ -294,6 +387,22 @@ function TicketDrawer({
       if (url) toast.success("Link de pago enviado por WhatsApp ✅");
       else toast.error("No se pudo generar el link de pago");
     } finally { setSendingLink(false); }
+  }
+
+  async function handleMarkCash() {
+    setMarkingCash(true);
+    try {
+      await markAsPaidCash(ticket!.id, userId, {
+        clientId: ticket!.clientId,
+        finalCost: ticket!.finalCost,
+      });
+      toast.success("Pago en efectivo registrado ✅");
+      await notifyStatusChange(ticket!, "pagado");
+    } catch {
+      toast.error("Error al registrar el pago");
+    } finally {
+      setMarkingCash(false);
+    }
   }
 
   async function handleSendAnticipo() {
@@ -516,12 +625,61 @@ function TicketDrawer({
             </div>
           )}
 
-          {/* Payment link button — visible for completed/unpaid tickets with a final cost */}
-          {(ticket.status === "completado" || (ticket.status !== "pagado" && ticket.paymentLinkUrl)) && ticket.finalCost && (
+          {/* Payment confirmation badge — ticket already paid */}
+          {ticket.status === "pagado" && (
+            <div className={`p-4 rounded-2xl border flex items-center gap-3 ${isDark ? "border-emerald-900/30 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+              <CheckCircle2 size={18} className="text-emerald-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className={`text-sm font-semibold ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                  Servicio pagado
+                  {ticket.finalCost && ` — $${ticket.finalCost.toLocaleString("es-MX")} MXN`}
+                </p>
+                {ticket.paymentMethod && (
+                  <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    Método: {ticket.paymentMethod === "efectivo" ? "Efectivo" : "Stripe"}
+                  </p>
+                )}
+              </div>
+              {ticket.paymentMethod && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  ticket.paymentMethod === "efectivo"
+                    ? isDark ? "bg-amber-900/40 text-amber-300" : "bg-amber-100 text-amber-700"
+                    : isDark ? "bg-purple-900/40 text-purple-300" : "bg-purple-100 text-purple-700"
+                }`}>
+                  {ticket.paymentMethod === "efectivo" ? "Efectivo" : "Stripe"}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Payment options — visible when service is completed and has a final cost */}
+          {ticket.status === "completado" && ticket.finalCost && (
+            <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? "border-emerald-900/30 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide flex items-center justify-between ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
+                <span>Cobrar servicio</span>
+                <span className="font-bold text-sm normal-case">${ticket.finalCost.toLocaleString("es-MX")} MXN</span>
+              </p>
+              <button onClick={handleSendPaymentLink} disabled={sendingLink}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                {ticket.paymentLinkUrl ? "Reenviar link de Stripe" : "Cobrar con Stripe"}
+              </button>
+              <button onClick={handleMarkCash} disabled={markingCash}
+                className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2 border ${
+                  isDark ? "border-white/10 text-slate-200 hover:bg-white/5" : "border-gray-300 text-slate-700 hover:bg-gray-100"
+                }`}>
+                {markingCash ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
+                Registrar pago en efectivo
+              </button>
+            </div>
+          )}
+
+          {/* Resend link — payment link exists but ticket not yet completed/paid */}
+          {ticket.status !== "completado" && ticket.status !== "pagado" && ticket.paymentLinkUrl && ticket.finalCost && (
             <button onClick={handleSendPaymentLink} disabled={sendingLink}
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
               {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
-              {ticket.paymentLinkUrl ? "Reenviar link de pago" : "Generar y enviar link de pago"}
+              Reenviar link de pago
             </button>
           )}
 
@@ -616,6 +774,7 @@ export default function TicketsPage() {
 
   const [tickets,   setTickets]   = useState<ServiceTicket[]>([]);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
+  const [clients,   setClients]   = useState<Client[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [filter,    setFilter]    = useState<string>("todos");
   const [search,    setSearch]    = useState("");
@@ -625,7 +784,8 @@ export default function TicketsPage() {
   useEffect(() => {
     const unsub1 = subscribeTickets((t) => { setTickets(t); setLoading(false); });
     const unsub2 = subscribeMechanics(setMechanics);
-    return () => { unsub1(); unsub2(); };
+    const unsub3 = subscribeClients(setClients);
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
   const filtered = useMemo(() => {
@@ -763,7 +923,7 @@ export default function TicketsPage() {
       )}
 
       {/* Create modal */}
-      <CreateTicketModal open={creating} onClose={() => setCreating(false)} isDark={isDark} />
+      <CreateTicketModal open={creating} onClose={() => setCreating(false)} isDark={isDark} clients={clients} />
 
       {/* Detail drawer */}
       <TicketDrawer
