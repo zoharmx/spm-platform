@@ -1,27 +1,28 @@
 import {
   collection, onSnapshot, query, orderBy,
-  where, type Unsubscribe,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
 import type { ServiceTicket } from "@/types";
 
 /**
- * Invoices in SPM are derived from paid service tickets — there's no
- * separate invoices collection. Each ticket with status "pagado" is an
- * invoice. This helper subscribes to those tickets for the Facturas module.
+ * Facturas = tickets en estado "completado" o "pagado".
+ *
+ * Usamos orderBy("createdAt") sin filtro de status para evitar el índice
+ * compuesto (status + paidAt) que falla cuando paidAt no está presente en
+ * el documento. El filtro de estado se aplica en el cliente.
  */
-
-/** Subscribe to all paid tickets (invoices), newest first. */
 export function subscribeInvoices(
   cb: (tickets: ServiceTicket[]) => void
 ): Unsubscribe {
   const db = getDb();
   const q  = query(
     collection(db, "service_tickets"),
-    where("status", "==", "pagado"),
-    orderBy("paidAt", "desc")
+    orderBy("createdAt", "desc")
   );
   return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceTicket));
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ServiceTicket);
+    // Mostrar completados Y pagados — ambos son facturables
+    cb(all.filter(t => t.status === "completado" || t.status === "pagado"));
   });
 }

@@ -7,9 +7,9 @@ import { subscribeInvoices } from "@/lib/firestore/invoices";
 import type { ServiceTicket } from "@/types";
 import { SERVICE_LABELS } from "@/types";
 import {
-  FileText, Search, Download, ExternalLink,
+  FileText, Search, ExternalLink,
   CheckCircle2, TrendingUp, DollarSign, Calendar,
-  Printer,
+  Printer, Clock,
 } from "lucide-react";
 import { generateInvoicePDF } from "@/lib/invoice-pdf";
 
@@ -73,38 +73,38 @@ export default function FacturasPage() {
     });
   }, [invoices, search, monthFilter, yearFilter]);
 
-  const totalRevenue = useMemo(
-    () => filtered.reduce((sum, inv) => sum + (inv.finalCost ?? 0), 0),
-    [filtered]
-  );
-  const avgTicket = filtered.length ? totalRevenue / filtered.length : 0;
+  const paid      = useMemo(() => filtered.filter(t => t.status === "pagado"),    [filtered]);
+  const pending   = useMemo(() => filtered.filter(t => t.status === "completado"), [filtered]);
+  const totalRevenue = useMemo(() => paid.reduce((s, t) => s + (t.finalCost ?? 0), 0), [paid]);
+  const pendingRevenue = useMemo(() => pending.reduce((s, t) => s + (t.finalCost ?? 0), 0), [pending]);
+  const avgTicket = paid.length ? totalRevenue / paid.length : 0;
 
   const card = `rounded-2xl border p-5 ${isDark ? "bg-slate-900 border-white/5" : "bg-white border-gray-100 shadow-sm"}`;
 
   return (
-    <CrmShell title="Facturas" subtitle="Historial de servicios pagados">
+    <CrmShell title="Facturas" subtitle="Servicios completados y pagados">
       <div className="space-y-6">
 
         {/* ── KPIs ─────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
-              label: "Total facturado",
+              label: "Cobrado (pagados)",
               value: `$${totalRevenue.toLocaleString("es-MX")}`,
               icon: DollarSign,
               color: "text-green-400",
               bg: "bg-green-500/10",
             },
             {
-              label: "Facturas",
-              value: filtered.length,
-              icon: FileText,
-              color: "text-blue-400",
-              bg: "bg-blue-500/10",
+              label: "Por cobrar (completados)",
+              value: pendingRevenue > 0 ? `$${pendingRevenue.toLocaleString("es-MX")}` : `${pending.length}`,
+              icon: Clock,
+              color: "text-amber-400",
+              bg: "bg-amber-500/10",
             },
             {
               label: "Ticket promedio",
-              value: `$${Math.round(avgTicket).toLocaleString("es-MX")}`,
+              value: avgTicket > 0 ? `$${Math.round(avgTicket).toLocaleString("es-MX")}` : "—",
               icon: TrendingUp,
               color: "text-purple-400",
               bg: "bg-purple-500/10",
@@ -171,109 +171,135 @@ export default function FacturasPage() {
             isDark ? "border-white/10 text-slate-500" : "border-gray-200 text-slate-400"
           }`}>
             <FileText size={36} className="mb-3 opacity-40" />
-            <p className="font-semibold">Sin facturas en este período</p>
-            <p className="text-sm mt-1">Las facturas se generan cuando un ticket cambia a "pagado".</p>
+            <p className="font-semibold">Sin servicios completados en este período</p>
+            <p className="text-sm mt-1">Aparecen aquí los tickets en estado <strong>completado</strong> o <strong>pagado</strong>.</p>
           </div>
         ) : (
           <div className={`rounded-2xl border overflow-hidden ${isDark ? "border-white/5" : "border-gray-100"}`}>
             {/* Header */}
-            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b ${
+            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_100px_90px_80px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b ${
               isDark ? "bg-slate-800 border-white/5 text-slate-400" : "bg-slate-50 border-gray-100 text-slate-500"
             }`}>
               <span>Folio</span>
               <span>Cliente</span>
               <span>Servicio</span>
               <span>Fecha</span>
+              <span className="text-center">Estado</span>
               <span className="text-right">Total</span>
               <span className="text-center">PDF</span>
             </div>
 
             {/* Rows */}
             <div className={isDark ? "bg-slate-900" : "bg-white"}>
-              {filtered.map((inv, i) => (
-                <div
-                  key={inv.id}
-                  className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 items-center px-5 py-4 border-b transition-colors hover:bg-white/5 ${
-                    i === filtered.length - 1 ? "border-0" : isDark ? "border-white/5" : "border-gray-50"
-                  }`}
-                >
-                  {/* Folio */}
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={14} className="text-green-400 flex-shrink-0" />
-                    <span className="font-mono font-semibold text-sm text-[var(--color-spm-red)]">
-                      {inv.ticketId}
-                    </span>
-                  </div>
+              {filtered.map((inv, i) => {
+                const isPagado = inv.status === "pagado";
+                return (
+                  <div
+                    key={inv.id}
+                    className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_100px_90px_80px] gap-3 items-center px-5 py-4 border-b transition-colors hover:bg-white/5 ${
+                      i === filtered.length - 1 ? "border-0" : isDark ? "border-white/5" : "border-gray-50"
+                    }`}
+                  >
+                    {/* Folio */}
+                    <div className="flex items-center gap-2">
+                      {isPagado
+                        ? <CheckCircle2 size={14} className="text-green-400 flex-shrink-0" />
+                        : <Clock size={14} className="text-amber-400 flex-shrink-0" />
+                      }
+                      <span className="font-mono font-semibold text-sm text-[var(--color-spm-red)]">
+                        {inv.ticketId}
+                      </span>
+                    </div>
 
-                  {/* Cliente */}
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-900"}`}>
-                      {inv.clientName ?? "—"}
+                    {/* Cliente */}
+                    <div className="min-w-0">
+                      <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-900"}`}>
+                        {inv.clientName ?? "—"}
+                      </p>
+                      <p className={`text-xs truncate ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                        {inv.clientPhone ?? ""}
+                      </p>
+                    </div>
+
+                    {/* Servicio */}
+                    <p className={`text-xs truncate ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                      {SERVICE_LABELS[inv.serviceType as keyof typeof SERVICE_LABELS] ?? inv.serviceType}
                     </p>
-                    <p className={`text-xs truncate ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                      {inv.clientPhone ?? ""}
+
+                    {/* Fecha */}
+                    <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      {formatDate(inv.paidAt ?? inv.completedAt ?? inv.updatedAt)}
                     </p>
-                  </div>
 
-                  {/* Servicio */}
-                  <p className={`text-xs truncate ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                    {SERVICE_LABELS[inv.serviceType as keyof typeof SERVICE_LABELS] ?? inv.serviceType}
-                  </p>
+                    {/* Estado */}
+                    <div className="flex justify-center">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        isPagado
+                          ? "bg-green-500/15 text-green-400"
+                          : "bg-amber-500/15 text-amber-400"
+                      }`}>
+                        {isPagado ? "Pagado" : "Por cobrar"}
+                      </span>
+                    </div>
 
-                  {/* Fecha */}
-                  <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                    {formatDate(inv.paidAt ?? inv.updatedAt)}
-                  </p>
+                    {/* Total + comprobante Stripe */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className={`font-display font-bold text-sm ${
+                        isPagado ? "text-green-400" : isDark ? "text-amber-400" : "text-amber-600"
+                      }`}>
+                        ${(inv.finalCost ?? 0).toLocaleString("es-MX")}
+                      </span>
+                      {inv.paymentLinkUrl && (
+                        <a
+                          href={inv.paymentLinkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`p-1 rounded-lg transition-colors ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}
+                          title="Ver comprobante Stripe"
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </div>
 
-                  {/* Total + comprobante Stripe */}
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span className="font-display font-bold text-sm text-green-400">
-                      ${(inv.finalCost ?? 0).toLocaleString("es-MX")}
-                    </span>
-                    {inv.paymentLinkUrl && (
-                      <a
-                        href={inv.paymentLinkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`p-1 rounded-lg transition-colors ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}
-                        title="Ver comprobante Stripe"
+                    {/* PDF button */}
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => generateInvoicePDF(inv)}
+                        title="Generar PDF"
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95 ${
+                          isDark
+                            ? "bg-[var(--color-spm-red)]/20 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/30"
+                            : "bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
+                        }`}
                       >
-                        <ExternalLink size={12} />
-                      </a>
-                    )}
+                        <Printer size={13} />
+                        PDF
+                      </button>
+                    </div>
                   </div>
-
-                  {/* PDF button */}
-                  <div className="flex justify-center">
-                    <button
-                      onClick={() => generateInvoicePDF(inv)}
-                      title="Generar PDF de la factura"
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95 ${
-                        isDark
-                          ? "bg-[var(--color-spm-red)]/20 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/30"
-                          : "bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
-                      }`}
-                    >
-                      <Printer size={13} />
-                      PDF
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Footer total */}
-            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 items-center px-5 py-3 border-t font-semibold text-sm ${
-              isDark ? "bg-slate-800/60 border-white/5 text-white" : "bg-slate-50 border-gray-100 text-slate-900"
-            }`}>
-              <span>{filtered.length} registros</span>
-              <span />
-              <span />
-              <span>Total</span>
-              <span className="text-green-400 font-display font-bold text-right">
-                ${totalRevenue.toLocaleString("es-MX")}
-              </span>
-              <span />
+            {/* Footer totals */}
+            <div className={`px-5 py-3 border-t ${isDark ? "bg-slate-800/60 border-white/5" : "bg-slate-50 border-gray-100"}`}>
+              <div className="flex items-center justify-between text-sm">
+                <span className={`font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
+                  {paid.length > 0 && <span className="ml-2 text-xs">({paid.length} pagados · {pending.length} por cobrar)</span>}
+                </span>
+                <div className="flex items-center gap-4">
+                  {pendingRevenue > 0 && (
+                    <span className={`text-xs ${isDark ? "text-amber-400" : "text-amber-600"}`}>
+                      Por cobrar: ${pendingRevenue.toLocaleString("es-MX")}
+                    </span>
+                  )}
+                  <span className={`font-display font-bold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    Total cobrado: <span className="text-green-400">${totalRevenue.toLocaleString("es-MX")}</span>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}
