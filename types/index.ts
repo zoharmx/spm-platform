@@ -201,11 +201,34 @@ export interface ServiceTicket {
   stripeSessionId?: string;     // Stripe session ID for webhook matching
   paymentMethod?: "stripe" | "efectivo";
   paidAt?: Timestamp;
+  // Partial payments
+  payments?: TicketPayment[];
+  totalPaid?: number;
   // Notifications
-  lastWhatsAppSent?: Timestamp; // Prevent duplicate WA messages
+  lastWhatsAppSent?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   completedAt?: Timestamp;
+}
+
+// ============================================================
+// Payment (per-ticket, supports partial payments)
+// ============================================================
+
+export type PaymentMethod = "stripe" | "efectivo" | "transferencia";
+export type PaymentType = "anticipo" | "parcial" | "final";
+
+export interface TicketPayment {
+  id: string;
+  type: PaymentType;
+  method: PaymentMethod;
+  amount: number;
+  note?: string;
+  stripeSessionId?: string;
+  stripeUrl?: string;
+  registeredBy: string;
+  registeredByName?: string;
+  createdAt?: Timestamp;
 }
 
 // ============================================================
@@ -331,4 +354,35 @@ export const NEXT_STATUS: Partial<Record<ServiceTicketStatus, ServiceTicketStatu
   "en-camino": "en-servicio",
   "en-servicio": "completado",
   completado: "pagado",
+};
+
+export const STATUS_PIPELINE: ServiceTicketStatus[] = [
+  "lead-recibido",
+  "diagnostico-pendiente",
+  "en-camino",
+  "en-servicio",
+  "completado",
+  "pagado",
+];
+
+export const STATUS_ICONS: Record<ServiceTicketStatus, string> = {
+  "lead-recibido": "inbox",
+  "diagnostico-pendiente": "stethoscope",
+  "en-camino": "truck",
+  "en-servicio": "wrench",
+  completado: "check",
+  pagado: "banknotes",
+  cancelado: "x-circle",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  stripe: "Stripe (tarjeta)",
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+};
+
+export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
+  anticipo: "Anticipo",
+  parcial: "Pago parcial",
+  final: "Pago final",
 };

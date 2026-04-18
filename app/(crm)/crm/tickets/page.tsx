@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   subscribeTickets, advanceTicketStatus, updateTicketFields,
-  createTicketDirect, markAsPaidCash,
+  createTicketDirect, markAsPaidCash, recordPayment,
 } from "@/lib/firestore/tickets";
 import { subscribeClients } from "@/lib/firestore/clients";
 
@@ -55,16 +55,19 @@ async function sendPaymentLink(ticket: ServiceTicket): Promise<string | null> {
   }
 }
 import { subscribeMechanics } from "@/lib/firestore/mechanics";
-import type { ServiceTicket, ServiceTicketStatus, Mechanic, Client } from "@/types";
+import type { ServiceTicket, ServiceTicketStatus, Mechanic, Client, PaymentMethod } from "@/types";
 import {
-  STATUS_LABELS, STATUS_COLORS, SERVICE_LABELS, NEXT_STATUS,
+  STATUS_LABELS, STATUS_COLORS, SERVICE_LABELS, NEXT_STATUS, STATUS_PIPELINE,
+  PAYMENT_METHOD_LABELS,
 } from "@/types";
 import {
   Plus, Search, Filter, ChevronRight, X, Loader2,
   User, Phone, MapPin, Wrench, Clock, CheckCircle2,
   AlertCircle, DollarSign, ChevronDown, CreditCard, Printer,
+  Inbox, Stethoscope, Truck, Ban, Receipt, FileText, Banknote,
+  ArrowRight, Check,
 } from "lucide-react";
-import { generateInvoicePDF } from "@/lib/invoice-pdf";
+import { generateInvoicePDF, generatePartialInvoicePDF, generatePaymentReceiptPDF } from "@/lib/invoice-pdf";
 import toast, { Toaster } from "react-hot-toast";
 
 // ── Status filter tabs ─────────────────────────────────────────
@@ -324,6 +327,11 @@ function TicketDrawer({
   const [sendingAnticipo, setSendingAnticipo] = useState(false);
   const [anticipoAmount, setAnticipo]         = useState(200);
   const [markingCash, setMarkingCash]         = useState(false);
+  const [showPayForm, setShowPayForm]         = useState(false);
+  const [payAmount, setPayAmount]             = useState("");
+  const [payMethod, setPayMethod]             = useState<PaymentMethod>("efectivo");
+  const [payNote, setPayNote]                 = useState("");
+  const [payLoading, setPayLoading]           = useState(false);
 
   useEffect(() => {
     if (ticket) {
@@ -652,25 +660,94 @@ function TicketDrawer({
             </div>
           )}
 
-          {/* Payment options — visible when service is completed and has a final cost */}
-          {ticket.status === "completado" && ticket.finalCost && (
-            <div className={`p-4 rounded-2xl border space-y-2 ${isDark ? "border-emerald-900/30 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
-              <p className={`text-xs font-semibold uppercase tracking-wide flex items-center justify-between ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
-                <span>Cobrar servicio</span>
-                <span className="font-bold text-sm normal-case">${ticket.finalCost.toLocaleString("es-MX")} MXN</span>
-              </p>
-              <button onClick={handleSendPaymentLink} disabled={sendingLink}
-                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-                {ticket.paymentLinkUrl ? "Reenviar link de Stripe" : "Cobrar con Stripe"}
-              </button>
-              <button onClick={handleMarkCash} disabled={markingCash}
-                className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2 border ${
-                  isDark ? "border-white/10 text-slate-200 hover:bg-white/5" : "border-gray-300 text-slate-700 hover:bg-gray-100"
-                }`}>
-                {markingCash ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
-                Registrar pago en efectivo
-              </button>
+          {/* Payment options — visible when service is completed or in-service and has a final cost */}
+          {(ticket.status === "completado" || ticket.status === "en-servicio") && ticket.finalCost && (
+            <div className={`p-4 rounded-2xl border space-y-3 ${isDark ? "border-emerald-900/30 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+              <div className="flex items-center justify-between">
+                <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
+                  Cobrar servicio
+                </p>
+                <span className={`font-bold text-sm ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                  {(ticket.totalPaid ?? 0) > 0
+                    ? `Resta: $${Math.max(0, ticket.finalCost - (ticket.totalPaid ?? 0)).toLocaleString("es-MX")}`
+                    : `$${ticket.finalCost.toLocaleString("es-MX")} MXN`
+                  }
+                </span>
+              </div>
+
+              {!showPayForm ? (
+                <div className="space-y-2">
+                  <button onClick={handleSendPaymentLink} disabled={sendingLink}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
+                    {ticket.paymentLinkUrl ? "Reenviar link de Stripe" : "Cobrar con Stripe"}
+                  </button>
+                  <button onClick={() => { setShowPayForm(true); setPayAmount(Math.max(0, ticket.finalCost! - (ticket.totalPaid ?? 0)).toString()); }}
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${
+                      isDark ? "border-white/10 text-slate-200 hover:bg-white/5" : "border-gray-300 text-slate-700 hover:bg-gray-100"
+                    }`}>
+                    <DollarSign size={14} />
+                    Registrar pago manual
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Method selector */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["efectivo", "stripe", "transferencia"] as PaymentMethod[]).map(m => (
+                      <button key={m} type="button" onClick={() => setPayMethod(m)}
+                        className={`px-2 py-2 rounded-lg text-[10px] font-semibold transition-all ${
+                          payMethod === m
+                            ? "bg-[var(--color-spm-red)] text-white"
+                            : isDark ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-white text-slate-500 hover:bg-gray-100"
+                        }`}>
+                        {m === "efectivo" ? "Efectivo" : m === "stripe" ? "Stripe" : "Transfer."}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Amount */}
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                    <input type="number" min={1} className={inputCls + " pl-7"} placeholder="Monto"
+                      value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                  </div>
+                  <input className={inputCls} placeholder="Nota opcional (referencia, concepto...)"
+                    value={payNote} onChange={e => setPayNote(e.target.value)} />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowPayForm(false)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-medium border ${isDark ? "border-white/10 text-slate-300" : "border-gray-200 text-slate-600"}`}>
+                      Cancelar
+                    </button>
+                    <button
+                      disabled={payLoading || !payAmount || Number(payAmount) <= 0}
+                      onClick={async () => {
+                        setPayLoading(true);
+                        try {
+                          const amt = Number(payAmount);
+                          const remaining = ticket.finalCost! - (ticket.totalPaid ?? 0);
+                          const pType = amt >= remaining ? "final" : "parcial";
+                          await recordPayment(ticket.id, {
+                            type: pType,
+                            method: payMethod,
+                            amount: amt,
+                            note: payNote || undefined,
+                            registeredBy: userId,
+                            registeredByName: "Operador",
+                          });
+                          toast.success(`Pago de $${amt.toLocaleString("es-MX")} registrado`);
+                          setShowPayForm(false);
+                          setPayAmount("");
+                          setPayNote("");
+                        } catch { toast.error("Error al registrar pago"); }
+                        finally { setPayLoading(false); }
+                      }}
+                      className="flex-1 py-2 rounded-xl text-xs font-bold bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white disabled:opacity-50 flex items-center justify-center gap-1.5">
+                      {payLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                      Registrar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -683,47 +760,186 @@ function TicketDrawer({
             </button>
           )}
 
-          {/* PDF button — visible for completed or paid tickets */}
+          {/* PDF buttons — visible for completed or paid tickets */}
           {(ticket.status === "pagado" || ticket.status === "completado") && (
-            <button
-              onClick={() => generateInvoicePDF(ticket)}
-              className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${
-                isDark
-                  ? "border-[var(--color-spm-red)]/30 bg-[var(--color-spm-red)]/10 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/20"
-                  : "border-red-200 bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
-              }`}
-            >
-              <Printer size={14} />
-              Generar PDF / Imprimir factura
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => generateInvoicePDF(ticket)}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${
+                  isDark
+                    ? "border-[var(--color-spm-red)]/30 bg-[var(--color-spm-red)]/10 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/20"
+                    : "border-red-200 bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
+                }`}
+              >
+                <Printer size={13} />
+                Factura
+              </button>
+              {(ticket.payments ?? []).length > 0 && (
+                <button
+                  onClick={() => generatePartialInvoicePDF(ticket)}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 border ${
+                    isDark
+                      ? "border-blue-900/30 bg-blue-950/20 text-blue-400 hover:bg-blue-950/30"
+                      : "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  }`}
+                >
+                  <FileText size={13} />
+                  Estado de cuenta
+                </button>
+              )}
+            </div>
           )}
 
-          {/* Status advance */}
-          {ticket.status !== "pagado" && ticket.status !== "cancelado" && (
+          {/* ── Status Pipeline Stepper ─────────────────────────────── */}
+          {ticket.status !== "cancelado" && (
             <div className={`p-4 rounded-2xl border ${isDark ? "border-white/5 bg-slate-800/40" : "border-gray-100 bg-slate-50"}`}>
-              <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                Avanzar estado
+              <p className={`text-xs font-semibold uppercase tracking-wide mb-4 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                Pipeline del servicio
               </p>
-              <textarea
-                rows={2}
-                placeholder="Nota opcional (ej: 'Mecánico en ruta')"
-                value={note}
-                onChange={e => setNote(e.target.value)}
-                className={inputCls + " resize-none mb-3"}
-              />
-              <div className="flex gap-2">
-                {nextStatus && (
-                  <button onClick={handleAdvance} disabled={saving}
-                    className="flex-1 py-2.5 rounded-xl bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white text-sm font-bold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
-                    → {STATUS_LABELS[nextStatus]}
-                  </button>
-                )}
-                <button onClick={handleCancel} disabled={saving}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all ${isDark ? "bg-red-950/40 text-red-400 hover:bg-red-950/60" : "bg-red-50 text-red-600 hover:bg-red-100"}`}>
-                  Cancelar ticket
+              {/* Stepper visual */}
+              <div className="flex items-center gap-0 mb-4 overflow-x-auto pb-1">
+                {STATUS_PIPELINE.map((step, i) => {
+                  const currentIdx = STATUS_PIPELINE.indexOf(ticket.status);
+                  const isDone = i < currentIdx;
+                  const isCurrent = step === ticket.status;
+                  const isFuture = i > currentIdx;
+                  const StepIcon = [Inbox, Stethoscope, Truck, Wrench, CheckCircle2, DollarSign][i];
+
+                  return (
+                    <div key={step} className="flex items-center flex-shrink-0">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                          isDone
+                            ? "bg-green-500 text-white"
+                            : isCurrent
+                              ? "bg-[var(--color-spm-red)] text-white ring-2 ring-[var(--color-spm-red)]/30 ring-offset-1 " + (isDark ? "ring-offset-slate-800" : "ring-offset-slate-50")
+                              : isDark ? "bg-slate-700 text-slate-500" : "bg-gray-200 text-gray-400"
+                        }`}>
+                          {isDone ? <Check size={14} /> : <StepIcon size={14} />}
+                        </div>
+                        <span className={`text-[9px] mt-1 font-semibold text-center leading-tight max-w-[52px] ${
+                          isCurrent ? "text-[var(--color-spm-red)]"
+                          : isDone ? (isDark ? "text-green-400" : "text-green-600")
+                          : isDark ? "text-slate-500" : "text-slate-400"
+                        }`}>
+                          {STATUS_LABELS[step].split(" ").slice(0, 2).join(" ")}
+                        </span>
+                      </div>
+                      {i < STATUS_PIPELINE.length - 1 && (
+                        <div className={`w-4 h-0.5 mx-0.5 mt-[-12px] ${
+                          isDone ? "bg-green-500" : isDark ? "bg-slate-700" : "bg-gray-200"
+                        }`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action buttons */}
+              {ticket.status !== "pagado" && (
+                <>
+                  <textarea
+                    rows={2}
+                    placeholder="Nota opcional (ej: 'Cliente confirmo hora')"
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    className={inputCls + " resize-none mb-3"}
+                  />
+                  <div className="space-y-2">
+                    {nextStatus && (
+                      <button onClick={handleAdvance} disabled={saving}
+                        className="w-full py-3 rounded-xl bg-[var(--color-spm-red)] hover:bg-[var(--color-spm-red-dark)] text-white text-sm font-bold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={16} />}
+                        Avanzar a: {STATUS_LABELS[nextStatus]}
+                      </button>
+                    )}
+                    <button onClick={handleCancel} disabled={saving}
+                      className={`w-full py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                        isDark ? "bg-red-950/30 text-red-400 hover:bg-red-950/50 border border-red-900/30"
+                        : "bg-red-50 text-red-600 hover:bg-red-100 border border-red-200"
+                      }`}>
+                      <Ban size={12} />
+                      Cancelar ticket
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Cancelled indicator */}
+          {ticket.status === "cancelado" && (
+            <div className={`p-4 rounded-2xl border flex items-center gap-3 ${isDark ? "border-red-900/30 bg-red-950/20" : "border-red-200 bg-red-50"}`}>
+              <Ban size={18} className="text-red-400 flex-shrink-0" />
+              <div>
+                <p className={`text-sm font-semibold ${isDark ? "text-red-300" : "text-red-700"}`}>Ticket cancelado</p>
+                <p className={`text-xs mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  {formatDate(ticket.updatedAt)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Payments section (partial payments) ────────────────── */}
+          {(ticket.payments ?? []).length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  Pagos registrados ({(ticket.payments ?? []).length})
+                </p>
+                <button onClick={() => generatePartialInvoicePDF(ticket)}
+                  className="text-xs text-[var(--color-spm-red)] hover:underline flex items-center gap-1">
+                  <FileText size={11} /> Estado de cuenta
                 </button>
               </div>
+              <div className="space-y-1.5">
+                {(ticket.payments ?? []).map(p => (
+                  <div key={p.id} className={`flex items-center justify-between p-2.5 rounded-xl ${isDark ? "bg-slate-800/40" : "bg-slate-50"}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        p.method === "stripe" ? "bg-purple-500/20 text-purple-400"
+                        : p.method === "efectivo" ? "bg-amber-500/20 text-amber-400"
+                        : "bg-blue-500/20 text-blue-400"
+                      }`}>
+                        {p.method === "stripe" ? <CreditCard size={10} /> : p.method === "efectivo" ? <Banknote size={10} /> : <DollarSign size={10} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+                          ${p.amount.toLocaleString("es-MX")}
+                          <span className={`ml-1.5 font-normal ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                            {p.type === "anticipo" ? "Anticipo" : p.type === "final" ? "Final" : "Parcial"}
+                          </span>
+                        </p>
+                        <p className={`text-[10px] ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                          {formatDate(p.createdAt)} {p.registeredByName ? `· ${p.registeredByName}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => generatePaymentReceiptPDF(ticket, p)}
+                      className={`p-1 rounded-lg ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}
+                      title="Recibo">
+                      <Receipt size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* Payment progress */}
+              {ticket.finalCost && (ticket.finalCost > 0) && (
+                <div className="mt-2">
+                  <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? "bg-slate-800" : "bg-gray-100"}`}>
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all"
+                      style={{ width: `${Math.min(100, Math.round(((ticket.totalPaid ?? 0) / ticket.finalCost) * 100))}%` }}
+                    />
+                  </div>
+                  <p className={`text-[10px] mt-1 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                    {((ticket.totalPaid ?? 0) >= ticket.finalCost)
+                      ? "Liquidado"
+                      : `$${(ticket.totalPaid ?? 0).toLocaleString("es-MX")} de $${ticket.finalCost.toLocaleString("es-MX")} (${Math.round(((ticket.totalPaid ?? 0) / ticket.finalCost) * 100)}%)`
+                    }
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

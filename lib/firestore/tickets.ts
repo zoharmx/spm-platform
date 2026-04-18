@@ -4,7 +4,10 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDb } from "@/lib/firebase";
-import type { ServiceTicket, ServiceTicketStatus, TicketEvent } from "@/types";
+import type {
+  ServiceTicket, ServiceTicketStatus, TicketEvent,
+  TicketPayment, PaymentMethod, PaymentType,
+} from "@/types";
 
 const COL = "service_tickets";
 
@@ -34,18 +37,15 @@ export async function advanceTicketStatus(
     note: note || undefined,
     userId,
   };
+
+  const { getDoc: fsGetDoc } = await import("firebase/firestore");
+  const snap = await fsGetDoc(ref);
+  const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
+
   await updateDoc(ref, {
     status: newStatus,
     updatedAt: serverTimestamp(),
     ...(newStatus === "completado" ? { completedAt: serverTimestamp() } : {}),
-    statusHistory: [] as TicketEvent[], // will be handled below
-  });
-  // Use arrayUnion-like pattern via direct field update
-  const snap = await import("firebase/firestore").then(({ getDoc }) =>
-    getDoc(ref)
-  );
-  const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
-  await updateDoc(ref, {
     statusHistory: [...existing, event],
   });
 }
@@ -155,6 +155,73 @@ export async function markAsPaidCash(
   if (options?.clientId && options?.finalCost) {
     await updateDoc(doc(db, "clients", options.clientId), {
       totalPaid: increment(options.finalCost),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
+/** Record a payment (partial, anticipo, or final) on a ticket. */
+export async function recordPayment(
+  ticketId: string,
+  payment: {
+    type: PaymentType;
+    method: PaymentMethod;
+    amount: number;
+    note?: string;
+    stripeSessionId?: string;
+    stripeUrl?: string;
+    registeredBy: string;
+    registeredByName?: string;
+  }
+): Promise<void> {
+  const db = getDb();
+  const ref = doc(db, COL, ticketId);
+  const { getDoc } = await import("firebase/firestore");
+  const snap = await getDoc(ref);
+  const data = snap.data();
+  const existingPayments: TicketPayment[] = data?.payments ?? [];
+  const existingHistory: TicketEvent[] = data?.statusHistory ?? [];
+  const previousTotal = data?.totalPaid ?? 0;
+
+  const newPayment: TicketPayment = {
+    id: `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    ...payment,
+    createdAt: Timestamp.now(),
+  };
+
+  const newTotalPaid = previousTotal + payment.amount;
+  const finalCost = data?.finalCost ?? 0;
+  const isFullyPaid = finalCost > 0 && newTotalPaid >= finalCost;
+
+  const updates: Record<string, unknown> = {
+    payments: [...existingPayments, newPayment],
+    totalPaid: newTotalPaid,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (payment.type === "anticipo") {
+    updates.anticipoPagado = true;
+    updates.anticipo = (data?.anticipo ?? 0) + payment.amount;
+  }
+
+  if (isFullyPaid && payment.type === "final") {
+    updates.status = "pagado";
+    updates.paymentMethod = payment.method;
+    updates.paidAt = serverTimestamp();
+    const event: TicketEvent = {
+      status: "pagado",
+      timestamp: Timestamp.now(),
+      note: `Pago final de $${payment.amount} (${payment.method})`,
+      userId: payment.registeredBy,
+    };
+    updates.statusHistory = [...existingHistory, event];
+  }
+
+  await updateDoc(ref, updates);
+
+  if (data?.clientId && payment.amount > 0) {
+    await updateDoc(doc(db, "clients", data.clientId), {
+      totalPaid: increment(payment.amount),
       updatedAt: serverTimestamp(),
     });
   }
