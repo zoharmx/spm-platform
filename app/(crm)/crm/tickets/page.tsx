@@ -374,6 +374,7 @@ function TicketDrawer({
     if (!nextStatus) return;
     setSaving(true);
     try {
+      console.log("[CRM] Avanzando ticket", ticket!.id, "→", nextStatus);
       await advanceTicketStatus(ticket!.id, nextStatus, note, userId);
       toast.success(`Estado → ${STATUS_LABELS[nextStatus]}`);
       setNote("");
@@ -391,8 +392,10 @@ function TicketDrawer({
           toast.dismiss("payment");
         }
       }
-    } catch { toast.error("Error al actualizar estado"); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error("[CRM] Error al avanzar status:", err);
+      toast.error("Error al actualizar estado");
+    } finally { setSaving(false); }
   }
 
   async function handleCancel() {
@@ -401,8 +404,10 @@ function TicketDrawer({
       await advanceTicketStatus(ticket!.id, "cancelado", note || "Cancelado desde CRM", userId);
       toast.success("Ticket cancelado");
       await notifyStatusChange(ticket!, "cancelado");
-    } catch { toast.error("Error"); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error("[CRM] Error al cancelar:", err);
+      toast.error("Error");
+    } finally { setSaving(false); }
   }
 
   async function handleSendPaymentLink() {
@@ -1015,7 +1020,7 @@ export default function TicketsPage() {
   const [loading,   setLoading]   = useState(true);
   const [filter,    setFilter]    = useState<string>("todos");
   const [search,    setSearch]    = useState("");
-  const [selected,  setSelected]  = useState<ServiceTicket | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating,  setCreating]  = useState(false);
 
   useEffect(() => {
@@ -1024,6 +1029,8 @@ export default function TicketsPage() {
     const unsub3 = subscribeClients(setClients);
     return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
+
+  const selected = useMemo(() => tickets.find(t => t.id === selectedId) ?? null, [tickets, selectedId]);
 
   const filtered = useMemo(() => {
     let list = tickets;
@@ -1127,7 +1134,7 @@ export default function TicketsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(ticket => (
-            <button key={ticket.id} onClick={() => setSelected(ticket)}
+            <button key={ticket.id} onClick={() => setSelectedId(ticket.id)}
               className={`w-full text-left p-4 rounded-2xl border transition-all hover:scale-[1.005] hover:border-[var(--color-spm-red)]/30 ${
                 isDark ? "bg-slate-900 border-white/5 hover:bg-slate-800" : "bg-white border-gray-100 hover:border-gray-200 shadow-sm"
               }`}>
@@ -1168,7 +1175,7 @@ export default function TicketsPage() {
         mechanics={mechanics}
         isDark={isDark}
         userId={user?.uid ?? ""}
-        onClose={() => setSelected(null)}
+        onClose={() => setSelectedId(null)}
       />
     </CrmShell>
   );

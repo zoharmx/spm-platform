@@ -29,17 +29,23 @@ export async function advanceTicketStatus(
   note: string,
   userId: string
 ): Promise<void> {
+  console.log("[tickets] advanceTicketStatus called:", { ticketId, newStatus, userId });
   const db = getDb();
   const ref = doc(db, COL, ticketId);
-  const event: TicketEvent = {
-    status: newStatus,
-    timestamp: Timestamp.now(),
-    note: note || undefined,
-    userId,
-  };
 
   const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    console.error("[tickets] Document not found:", ticketId);
+    throw new Error(`Ticket document ${ticketId} not found`);
+  }
+
   const existing: TicketEvent[] = snap.data()?.statusHistory ?? [];
+  const event: Record<string, unknown> = {
+    status: newStatus,
+    timestamp: Timestamp.now(),
+    userId,
+  };
+  if (note) event.note = note;
 
   await updateDoc(ref, {
     status: newStatus,
@@ -47,6 +53,7 @@ export async function advanceTicketStatus(
     ...(newStatus === "completado" ? { completedAt: serverTimestamp() } : {}),
     statusHistory: [...existing, event],
   });
+  console.log("[tickets] Status updated successfully to:", newStatus);
 }
 
 /** Assign a mechanic to a ticket. */
@@ -187,11 +194,18 @@ export async function recordPayment(
   const existingHistory: TicketEvent[] = data?.statusHistory ?? [];
   const previousTotal = data?.totalPaid ?? 0;
 
-  const newPayment: TicketPayment = {
+  const newPayment: Record<string, unknown> = {
     id: `PAY-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    ...payment,
+    type: payment.type,
+    method: payment.method,
+    amount: payment.amount,
+    registeredBy: payment.registeredBy,
     createdAt: Timestamp.now(),
   };
+  if (payment.note) newPayment.note = payment.note;
+  if (payment.stripeSessionId) newPayment.stripeSessionId = payment.stripeSessionId;
+  if (payment.stripeUrl) newPayment.stripeUrl = payment.stripeUrl;
+  if (payment.registeredByName) newPayment.registeredByName = payment.registeredByName;
 
   const newTotalPaid = previousTotal + payment.amount;
   const finalCost = data?.finalCost ?? 0;
