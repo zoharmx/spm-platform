@@ -9,7 +9,9 @@ import { SERVICE_LABELS } from "@/types";
 import {
   FileText, Search, Download, ExternalLink,
   CheckCircle2, TrendingUp, DollarSign, Calendar,
+  Printer,
 } from "lucide-react";
+import { generateInvoicePDF } from "@/lib/invoice-pdf";
 
 function formatDate(ts: unknown): string {
   if (!ts) return "—";
@@ -175,7 +177,7 @@ export default function FacturasPage() {
         ) : (
           <div className={`rounded-2xl border overflow-hidden ${isDark ? "border-white/5" : "border-gray-100"}`}>
             {/* Header */}
-            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_auto] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b ${
+            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 px-5 py-3 text-xs font-semibold uppercase tracking-wide border-b ${
               isDark ? "bg-slate-800 border-white/5 text-slate-400" : "bg-slate-50 border-gray-100 text-slate-500"
             }`}>
               <span>Folio</span>
@@ -183,6 +185,7 @@ export default function FacturasPage() {
               <span>Servicio</span>
               <span>Fecha</span>
               <span className="text-right">Total</span>
+              <span className="text-center">PDF</span>
             </div>
 
             {/* Rows */}
@@ -190,7 +193,7 @@ export default function FacturasPage() {
               {filtered.map((inv, i) => (
                 <div
                   key={inv.id}
-                  className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_auto] gap-4 items-center px-5 py-4 border-b transition-colors hover:bg-white/5 ${
+                  className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 items-center px-5 py-4 border-b transition-colors hover:bg-white/5 ${
                     i === filtered.length - 1 ? "border-0" : isDark ? "border-white/5" : "border-gray-50"
                   }`}
                 >
@@ -222,9 +225,9 @@ export default function FacturasPage() {
                     {formatDate(inv.paidAt ?? inv.updatedAt)}
                   </p>
 
-                  {/* Total */}
-                  <div className="flex items-center gap-2">
-                    <span className={`font-display font-bold text-sm text-green-400`}>
+                  {/* Total + comprobante Stripe */}
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span className="font-display font-bold text-sm text-green-400">
                       ${(inv.finalCost ?? 0).toLocaleString("es-MX")}
                     </span>
                     {inv.paymentLinkUrl && (
@@ -235,25 +238,42 @@ export default function FacturasPage() {
                         className={`p-1 rounded-lg transition-colors ${isDark ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`}
                         title="Ver comprobante Stripe"
                       >
-                        <ExternalLink size={13} />
+                        <ExternalLink size={12} />
                       </a>
                     )}
+                  </div>
+
+                  {/* PDF button */}
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => generateInvoicePDF(inv)}
+                      title="Generar PDF de la factura"
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 active:scale-95 ${
+                        isDark
+                          ? "bg-[var(--color-spm-red)]/20 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/30"
+                          : "bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
+                      }`}
+                    >
+                      <Printer size={13} />
+                      PDF
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Footer total */}
-            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_auto] gap-4 items-center px-5 py-3 border-t font-semibold text-sm ${
+            <div className={`grid grid-cols-[1fr_1.5fr_1.2fr_1fr_90px_80px] gap-3 items-center px-5 py-3 border-t font-semibold text-sm ${
               isDark ? "bg-slate-800/60 border-white/5 text-white" : "bg-slate-50 border-gray-100 text-slate-900"
             }`}>
               <span>{filtered.length} registros</span>
               <span />
               <span />
               <span>Total</span>
-              <span className="text-green-400 font-display font-bold">
+              <span className="text-green-400 font-display font-bold text-right">
                 ${totalRevenue.toLocaleString("es-MX")}
               </span>
+              <span />
             </div>
           </div>
         )}

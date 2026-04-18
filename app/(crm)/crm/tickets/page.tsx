@@ -60,8 +60,9 @@ import {
 import {
   Plus, Search, Filter, ChevronRight, X, Loader2,
   User, Phone, MapPin, Wrench, Clock, CheckCircle2,
-  AlertCircle, DollarSign, ChevronDown, CreditCard,
+  AlertCircle, DollarSign, ChevronDown, CreditCard, Printer,
 } from "lucide-react";
+import { generateInvoicePDF } from "@/lib/invoice-pdf";
 import toast, { Toaster } from "react-hot-toast";
 
 // ── Status filter tabs ─────────────────────────────────────────
@@ -521,6 +522,21 @@ function TicketDrawer({
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
               {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
               {ticket.paymentLinkUrl ? "Reenviar link de pago" : "Generar y enviar link de pago"}
+            </button>
+          )}
+
+          {/* PDF button — visible for completed or paid tickets */}
+          {(ticket.status === "pagado" || ticket.status === "completado") && (
+            <button
+              onClick={() => generateInvoicePDF(ticket)}
+              className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${
+                isDark
+                  ? "border-[var(--color-spm-red)]/30 bg-[var(--color-spm-red)]/10 text-[var(--color-spm-red)] hover:bg-[var(--color-spm-red)]/20"
+                  : "border-red-200 bg-red-50 text-[var(--color-spm-red)] hover:bg-red-100"
+              }`}
+            >
+              <Printer size={14} />
+              Generar PDF / Imprimir factura
             </button>
           )}
 
