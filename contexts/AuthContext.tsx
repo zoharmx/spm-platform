@@ -4,7 +4,6 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut as firebaseSignOut,
@@ -194,31 +193,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Sign in with Google — popup first, redirect fallback.
-   * Popup is reliable and resolves on the same page (no redirect loop risk).
-   * Falls back to redirect only if the popup is explicitly blocked.
+   * Sign in with Google using redirect (no popup).
+   *
+   * Popup was abandoned because:
+   * - Our COOP header (same-origin-allow-popups) conflicts with Google's COOP
+   *   (same-origin), causing Chrome to isolate the popup's browsing context.
+   *   window.opener becomes null → Firebase cannot relay the auth result back
+   *   to the opener → main page goes blank with no console errors.
+   * - On mobile, popups aren't supported anyway (Firebase auto-falls back).
+   *
+   * Redirect is reliable on all platforms once the auth domain is correct
+   * and getRedirectResult() is awaited before onAuthStateChanged.
    */
   async function signInWithGoogle() {
     const auth     = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code ?? "";
-      if (
-        code === "auth/popup-blocked" ||
-        code === "auth/popup-closed-by-user" ||
-        code === "auth/cancelled-popup-request"
-      ) {
-        // Popup blocked — fall back to redirect
-        sessionStorage.setItem("spm_auth_redirect", "1");
-        await signInWithRedirect(auth, provider);
-      } else {
-        throw err;
-      }
-    }
+    sessionStorage.setItem("spm_auth_redirect", "1");
+    await signInWithRedirect(auth, provider);
+    // Browser navigates away — nothing runs after this point
   }
 
   async function signOut() {

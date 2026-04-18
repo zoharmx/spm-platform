@@ -8,8 +8,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      // Safe: returns 'viewer' if the user document doesn't exist yet
+      let u = userDoc();
+      return u != null ? u.data.get('role', 'viewer') : 'viewer';
     }
 
     function hasRole(minimum) {
@@ -23,46 +29,42 @@ service cloud.firestore {
       return isAuth() && weights[userRole()] >= weights[minimum];
     }
 
-    // ── Public read: tracking uses Admin SDK (bypasses rules) ───────────────
-
     // ── Users ───────────────────────────────────────────────────────────────
     match /users/{userId} {
-      // Anyone authenticated can read their own profile
-      allow read: if isAuth() && request.auth.uid == userId;
-      // Managers can read all user profiles (for role management UI)
+      // Anyone authenticated can read/write their own profile
+      allow read, write: if isAuth() && request.auth.uid == userId;
+      // Managers+ can read all user profiles (role management UI)
       allow read: if hasRole('manager');
-      // Users can write their own profile (e.g. update FCM token)
-      allow write: if isAuth() && request.auth.uid == userId;
       // Admins can update any user's role
       allow write: if hasRole('admin');
     }
 
     // ── Service Tickets ─────────────────────────────────────────────────────
     match /service_tickets/{ticketId} {
-      // Operators can read and write all tickets
+      // Operators+ can read and write all tickets (CRM module)
       allow read, write: if hasRole('operador');
-      // Mechanics can read tickets assigned to them and update status
-      allow read: if isAuth() && resource.data.mechanicId == request.auth.uid;
-      allow update: if isAuth() && resource.data.mechanicId == request.auth.uid;
-      // Clients can read their own tickets
-      allow read: if isAuth() && (
+      // Mechanics can read tickets assigned to them and update status/notes
+      allow read:   if isAuth() && resource != null && resource.data.mechanicId == request.auth.uid;
+      allow update: if isAuth() && resource != null && resource.data.mechanicId == request.auth.uid;
+      // Clients can read their own tickets (portal module)
+      allow read: if isAuth() && resource != null && (
         resource.data.clientEmail == request.auth.token.email ||
         resource.data.clientId == request.auth.uid
       );
-      // Quotes API creates tickets server-side via Admin SDK (bypasses rules)
     }
 
     // ── Clients ─────────────────────────────────────────────────────────────
     match /clients/{clientId} {
       allow read, write: if hasRole('operador');
-      // A viewer can read their own client record
-      allow read: if isAuth() && resource.data.uid == request.auth.uid;
+      allow read: if isAuth() && resource != null && resource.data.uid == request.auth.uid;
     }
 
     // ── Mechanics ───────────────────────────────────────────────────────────
     match /mechanics/{mechanicId} {
       allow read: if isAuth();
       allow write: if hasRole('manager');
+      // Mechanics can update their own location/status
+      allow update: if isAuth() && resource != null && resource.data.uid == request.auth.uid;
     }
 
     // ── Motorcycles ─────────────────────────────────────────────────────────
@@ -78,22 +80,22 @@ service cloud.firestore {
 
     // ── Platform settings ───────────────────────────────────────────────────
     match /settings/{document} {
-      // Any authenticated user can read settings (needed for anticipo default, etc.)
       allow read: if isAuth();
-      // Only managers and admins can write settings
       allow write: if hasRole('manager');
     }
 
     // ── Atomic counters ─────────────────────────────────────────────────────
+    // Operators need client-side access to generate sequential SPM-XXXX IDs
+    // via Firestore transactions (createTicketDirect in lib/firestore/tickets.ts).
+    // The quotes API also uses Admin SDK (bypasses rules) so this is safe.
     match /_counters/{document} {
-      // Managed exclusively by Admin SDK (server-side); deny all client access
-      allow read, write: if false;
+      allow read, write: if hasRole('operador');
     }
 
-    // ── Chat / lead data ────────────────────────────────────────────────────
+    // ── Lead data ────────────────────────────────────────────────────────────
     match /leads/{leadId} {
       allow read: if hasRole('operador');
-      // Leads are created server-side via Admin SDK
+      // Leads are created server-side via Admin SDK (quotes API)
       allow write: if false;
     }
 

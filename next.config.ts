@@ -46,13 +46,11 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=()",
   },
-  // Required for Firebase Auth signInWithPopup: allows the popup window
-  // (accounts.google.com) to post back the auth result to the opener.
-  // Without this, Chrome blocks window.closed polling and cancellation detection.
-  {
-    key: "Cross-Origin-Opener-Policy",
-    value: "same-origin-allow-popups",
-  },
+  // NOTE: Cross-Origin-Opener-Policy is intentionally NOT set (default: unsafe-none).
+  // Setting same-origin-allow-popups conflicts with Google's own COOP: same-origin header,
+  // causing Chrome to isolate the popup's browsing context — window.opener becomes null,
+  // Firebase Auth cannot send the auth result back to the opener, and the page goes blank.
+  // The auth flow uses signInWithRedirect (no popup) so COOP is not needed.
   {
     key: "Content-Security-Policy",
     value: cspDirectives,
