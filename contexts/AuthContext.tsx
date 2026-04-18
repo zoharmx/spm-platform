@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut as firebaseSignOut,
@@ -193,25 +194,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   /**
-   * Sign in with Google using redirect (no popup).
+   * Sign in with Google.
    *
-   * Popup was abandoned because:
-   * - Our COOP header (same-origin-allow-popups) conflicts with Google's COOP
-   *   (same-origin), causing Chrome to isolate the popup's browsing context.
-   *   window.opener becomes null → Firebase cannot relay the auth result back
-   *   to the opener → main page goes blank with no console errors.
-   * - On mobile, popups aren't supported anyway (Firebase auto-falls back).
+   * Strategy: popup on desktop, redirect fallback on mobile / if popup blocked.
    *
-   * Redirect is reliable on all platforms once the auth domain is correct
-   * and getRedirectResult() is awaited before onAuthStateChanged.
+   * WHY popup (not redirect):
+   *   signInWithRedirect stores the auth result in Firebase's domain
+   *   (sanpedromotocare.firebaseapp.com). Our app runs at spm-platform.vercel.app.
+   *   Modern browsers (Safari ITP, Chrome storage partitioning) block cross-origin
+   *   IndexedDB access from third-party iframes, so getRedirectResult() returns null
+   *   → infinite loop back to /login.
+   *
+   * WHY popup works without COOP header:
+   *   The blank screen was caused by our COOP: same-origin-allow-popups conflicting
+   *   with Google's COOP: same-origin. Chrome isolated the popup's browsing context,
+   *   making window.opener null. We removed that header — now the popup communicates
+   *   the auth result back to the opener correctly via postMessage (same browsing context).
    */
   async function signInWithGoogle() {
     const auth     = getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    sessionStorage.setItem("spm_auth_redirect", "1");
-    await signInWithRedirect(auth, provider);
-    // Browser navigates away — nothing runs after this point
+
+    try {
+      await signInWithPopup(auth, provider);
+      // Auth result is delivered synchronously via onAuthStateChanged — no redirect needed
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      if (
+        code === "auth/popup-blocked" ||
+        code === "auth/popup-closed-by-user" ||
+        code === "auth/cancelled-popup-request" ||
+        code === "auth/operation-not-supported-in-this-environment"
+      ) {
+        // Mobile or popup blocked — fall back to redirect
+        sessionStorage.setItem("spm_auth_redirect", "1");
+        await signInWithRedirect(auth, provider);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async function signOut() {
