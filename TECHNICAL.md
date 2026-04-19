@@ -1,7 +1,7 @@
 # Documentación Técnica — SanPedroMotoCare Platform
 
-**Versión:** 1.2.0  
-**Fecha:** Abril 2026  
+**Versión:** 1.3.0  
+**Fecha:** 18 de abril de 2026  
 **Producción:** https://spm-platform.vercel.app  
 **Repositorio:** https://github.com/zoharmx/spm-platform
 
@@ -70,7 +70,9 @@ spm-platform/
 │   ├── (public)/                     Rutas públicas (sin auth requerida)
 │   │   ├── page.tsx                  Landing page principal
 │   │   ├── tracking/page.tsx         /tracking — rastreo por SPM-XXXX
-│   │   └── cotizar/page.tsx          /cotizar — formulario de cotización
+│   │   ├── cotizar/page.tsx          /cotizar — formulario de cotización
+│   │   ├── privacidad/page.tsx       /privacidad — aviso de privacidad
+│   │   └── terminos/page.tsx         /terminos — términos y condiciones
 │   │
 │   ├── (auth)/
 │   │   └── login/page.tsx            /login — Email + Google Sign-In
@@ -80,7 +82,8 @@ spm-platform/
 │   │       ├── page.tsx              /portal — resumen de servicios del cliente
 │   │       ├── servicios/            /portal/servicios — historial
 │   │       ├── pagar/                /portal/pagar — checkout con Stripe
-│   │       └── moto/                 /portal/moto — datos del vehículo
+│   │       ├── moto/                 /portal/moto — datos del vehículo
+│   │       └── perfil/               /portal/perfil — perfil de usuario
 │   │
 │   ├── (field)/                      Auth: role mecanico
 │   │   └── mecánico/                 App de campo para mecánicos
@@ -93,6 +96,7 @@ spm-platform/
 │   │       ├── mecanicos/            Gestión de mecánicos y disponibilidad
 │   │       ├── facturas/             Facturación y pagos
 │   │       ├── contact-center/       Cola de llamadas + historial Twilio
+│   │       ├── pagos/                Cobros y pagos
 │   │       ├── reportes/             Reportes y analytics
 │   │       └── configuracion/        Configuración del sistema
 │   │
@@ -167,6 +171,14 @@ spm-platform/
 │   ├── favicon.png                   Logo SPM como favicon
 │   └── manifest.json                 PWA Web App Manifest
 │
+├── tests/                            Suite de tests (Vitest)
+│   ├── setup.ts                      Mocks globales (Firebase SDK)
+│   ├── api/                          Tests de API Routes
+│   ├── lib/                          Tests de lógica de negocio
+│   └── types/                        Tests de constantes y tipos
+│
+├── .github/workflows/ci.yml          Pipeline CI (GitHub Actions)
+├── vitest.config.ts                  Configuración de Vitest
 ├── proxy.ts                          Protección de rutas (Next.js 16)
 ├── next.config.ts                    Configuración + CSP headers de seguridad
 ├── .env.example                      Plantilla de variables de entorno
@@ -580,16 +592,94 @@ Cliente (ChatWidget.tsx)
 
 ---
 
-## 12. Deploy y CI/CD
+## 12. Testing
 
-### Flujo actual
+### Stack de testing
+
+| Herramienta | Versión | Propósito |
+|-------------|---------|-----------|
+| Vitest | 3.x | Test runner ESM-nativo |
+| happy-dom | — | Entorno DOM ligero |
+| @vitest/coverage-v8 | — | Coverage con V8 |
+
+### Ejecución
+
+```bash
+npm test              # 110 tests (~5 segundos)
+npm run test:watch    # Watch mode para desarrollo
+npm run test:coverage # Coverage completo con thresholds
+```
+
+### Coverage (abril 2026)
+
+| Métrica | Cobertura | Threshold |
+|---------|-----------|-----------|
+| Statements | 87.85% | 70% |
+| Branches | 73.09% | 70% |
+| Functions | 74.50% | 70% |
+| Lines | 89.86% | 70% |
+
+### Archivos de test
+
+```
+tests/
+├── setup.ts                          Mocks globales (Firebase Client + Admin SDK)
+├── api/
+│   ├── auth-session.test.ts          Session cookie CRUD
+│   ├── quotes.test.ts               Cotizaciones + validación + rate limit
+│   ├── tracking.test.ts             Tracking público + campos ocultos
+│   ├── voice-say.test.ts            TwiML XML + XSS escaping
+│   ├── voice-status.test.ts         Callback Twilio
+│   └── webhook.test.ts              Webhooks Stripe + firma
+├── lib/
+│   ├── firestore-tickets.test.ts    CRUD tickets + pipeline + pagos (17 tests)
+│   ├── firestore-clients.test.ts    CRUD clientes + campos moto
+│   ├── firestore-mechanics.test.ts  CRUD mecánicos
+│   ├── firestore-invoices.test.ts   Listener facturas
+│   ├── notifications-messages.test.ts  Mensajes por status (16 tests)
+│   ├── rate-limit.test.ts           Sliding window + IP isolation (10 tests)
+│   └── stripe-client.test.ts        Checkout + firma + MXN→centavos
+└── types/
+    └── index.test.ts                Constantes del sistema
+```
+
+---
+
+## 13. Deploy y CI/CD
+
+### GitHub Actions (`.github/workflows/ci.yml`)
+
+```
+Push to master / Pull Request
+         │
+         ▼
+  ┌──────────────────┐
+  │ Lint & TypeCheck  │  tsc --noEmit + ESLint
+  └──────────────────┘
+         │
+         ▼
+  ┌──────────────────┐
+  │ Tests & Coverage  │  vitest run --coverage
+  └──────────────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+ Coverage   Upload        En PRs: comentario
+ gates      artifacts     automático con tabla
+ (70% min)  (14 días)     de métricas
+```
+
+### Deploy a producción
 
 ```
 Desarrollador
     │
     └── git push origin master
             │
-            └── GitHub → Vercel (integración automática)
+            ├── GitHub Actions (lint + tests + coverage)
+            │
+            └── Vercel (build automático)
                     │
                     ├── Build: next build (Turbopack)
                     ├── Región: Washington D.C. (iad1)
@@ -615,7 +705,7 @@ vercel ls         # Lista todos los deploys con su URL
 
 ---
 
-## 13. Seguridad
+## 14. Seguridad
 
 ### Implementado y activo
 
@@ -649,7 +739,7 @@ vercel ls         # Lista todos los deploys con su URL
 
 ---
 
-## 14. Guía de contribución
+## 15. Guía de contribución
 
 ### Agregar una nueva ruta al CRM
 
@@ -672,7 +762,7 @@ vercel ls         # Lista todos los deploys con su URL
 
 ---
 
-## 15. Dependencias principales
+## 16. Dependencias principales
 
 ```json
 {
@@ -696,4 +786,4 @@ vercel ls         # Lista todos los deploys con su URL
 
 ---
 
-*Documentación actualizada el 16 de abril de 2026. Versión 1.2.0*
+*Documentación actualizada el 18 de abril de 2026. Versión 1.3.0*
