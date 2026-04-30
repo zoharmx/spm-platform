@@ -14,8 +14,8 @@ const cspDirectives = [
   "font-src 'self' https://fonts.gstatic.com",
   // Images: self + data URIs + Firebase Storage + Google avatars
   "img-src 'self' data: blob: https://storage.googleapis.com https://lh3.googleusercontent.com https://firebasestorage.googleapis.com",
-  // Connections: self + Firebase + Gemini + Google Auth + Google APIs + Stripe
-  "connect-src 'self' https://*.googleapis.com https://apis.google.com https://accounts.google.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://generativelanguage.googleapis.com https://*.firebaseapp.com https://*.firebase.com https://api.stripe.com https://hooks.stripe.com",
+  // Connections: self + Firebase + Google Auth + Google APIs + Stripe
+  "connect-src 'self' https://*.googleapis.com https://apis.google.com https://accounts.google.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseapp.com https://*.firebase.com https://api.stripe.com https://hooks.stripe.com",
   // Frames: Google Auth + Firebase Auth + Stripe Checkout iframes
   "frame-src https://accounts.google.com https://*.firebaseapp.com https://*.firebase.com https://js.stripe.com https://hooks.stripe.com",
   // Everything else: block
@@ -44,7 +44,7 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value: "camera=(), microphone=(self), geolocation=(), payment=()",
   },
   // NOTE: Cross-Origin-Opener-Policy is intentionally NOT set (default: unsafe-none).
   // Setting same-origin-allow-popups conflicts with Google's own COOP: same-origin header,

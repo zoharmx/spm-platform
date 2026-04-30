@@ -29,6 +29,7 @@ export type ServiceType =
   | "transmision"
   | "refaccion"
   | "diagnostico"
+  | "lavado"
   | "otro";
 
 export type LeadSource =
@@ -345,6 +346,7 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
   transmision: "Transmisión",
   refaccion: "Refacción",
   diagnostico: "Diagnóstico",
+  lavado: "Lavado de Motocicleta",
   otro: "Otro",
 };
 

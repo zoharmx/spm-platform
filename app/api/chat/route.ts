@@ -1,5 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { Mistral } from "@mistralai/mistralai";
 import { createRateLimiter, getClientIp } from "@/lib/rate-limit";
 
 // 20 requests per minute per IP
@@ -15,7 +15,7 @@ Tu rol es:
 5. Responder preguntas sobre el área de cobertura, horarios y procesos
 
 Información clave:
-- Servicios: Afinación menor/mayor, frenos, sistema eléctrico, suspensión, cadena y sprockets, neumáticos, batería, carburador/inyección, motor, diagnóstico
+- Servicios: Afinación menor/mayor, frenos, sistema eléctrico, suspensión, cadena y sprockets, neumáticos, batería, carburador/inyección, motor, diagnóstico, lavado de moto (lavado exterior + limpieza de motor + brillado)
 - Área de cobertura: San Pedro Garza García, Monterrey, Guadalupe, Apodaca, Santa Catarina, San Nicolás
 - Horario: Lunes a Domingo 7am–9pm, urgencias 24/7
 - Tiempo de respuesta: 45 minutos promedio
@@ -51,38 +51,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid message" }, { status: 400 });
     }
 
-    // GEMINI_API_KEY is server-only (no NEXT_PUBLIC_ prefix) to prevent exposure to the browser
-    const apiKey = process.env.GEMINI_API_KEY;
+    // MISTRAL_API_KEY is server-only (no NEXT_PUBLIC_ prefix) to prevent exposure to the browser
+    const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Gemini API not configured" },
+        { error: "Mistral API not configured" },
         { status: 500 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
-      systemInstruction: SYSTEM_PROMPT,
+    const client = new Mistral({ apiKey });
+
+    const messages = [
+      { role: "system" as const, content: SYSTEM_PROMPT },
+      ...(history ?? [])
+        .slice(-10)
+        .map((msg: { role: string; content: string }) => ({
+          role: (msg.role === "assistant" ? "assistant" : "user") as "assistant" | "user",
+          content: msg.content,
+        })),
+      { role: "user" as const, content: message },
+    ];
+
+    const result = await client.chat.complete({
+      model: "mistral-small-latest",
+      messages,
     });
 
-    // Build chat history
-    const chatHistory = (history ?? [])
-      .slice(-10) // Keep last 10 messages for context
-      .map((msg: { role: string; content: string }) => ({
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }],
-      }));
+    const reply = result.choices?.[0]?.message?.content ?? "";
 
-    const chat = model.startChat({ history: chatHistory });
-    const result = await chat.sendMessage(message);
-    const response = result.response.text();
+    if (!reply) {
+      console.error("[chat] Empty reply from Mistral");
+    }
 
-    return NextResponse.json({ reply: response });
+    return NextResponse.json({ reply });
   } catch (error) {
-    console.error("Chat API error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[chat] Unhandled error:", msg);
     return NextResponse.json(
-      { error: "Error procesando tu mensaje. Intenta de nuevo." },
+      { error: "Error procesando tu mensaje. Intenta de nuevo.", detail: msg },
       { status: 500 }
     );
   }

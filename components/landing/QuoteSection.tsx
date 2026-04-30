@@ -18,6 +18,7 @@ const SERVICE_OPTIONS = [
   "bateria",
   "motor",
   "diagnostico",
+  "lavado",
   "otro",
 ];
 
@@ -32,6 +33,7 @@ const SERVICE_LABELS_ES: Record<string, string> = {
   bateria: "Batería",
   motor: "Motor",
   diagnostico: "Diagnóstico General",
+  lavado: "Lavado de Motocicleta",
   otro: "Otro",
 };
 

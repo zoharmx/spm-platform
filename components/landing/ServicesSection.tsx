@@ -5,7 +5,7 @@ import { useInView } from "react-intersection-observer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  Wrench, Zap, Settings, Link2, Circle, Battery, Cpu, Cog, ShieldCheck, Star,
+  Wrench, Zap, Settings, Link2, Circle, Battery, Cog, ShieldCheck, Star, Droplets,
 } from "lucide-react";
 
 const SERVICES = [
@@ -17,6 +17,7 @@ const SERVICES = [
   { key: "cadena", icon: Link2, color: "from-orange-500 to-amber-500" },
   { key: "neumaticos", icon: Circle, color: "from-slate-500 to-gray-500" },
   { key: "bateria", icon: Battery, color: "from-indigo-500 to-blue-500" },
+  { key: "lavado", icon: Droplets, color: "from-cyan-500 to-sky-500" },
 ];
 
 export default function ServicesSection() {
@@ -88,7 +89,9 @@ export default function ServicesSection() {
                   isDark
                     ? "bg-slate-900/60 border-white/5 hover:border-[var(--color-spm-red)]/40"
                     : "bg-white border-gray-100 hover:border-[var(--color-spm-red)]/30 shadow-sm"
-                } ${inView ? "animate-fade-in-up" : "opacity-0"}`}
+                } ${inView ? "animate-fade-in-up" : "opacity-0"} ${
+                  i === SERVICES.length - 1 && SERVICES.length % 2 !== 0 ? "col-span-2 flex flex-row items-center gap-4" : ""
+                }`}
                 style={{ animationDelay: `${i * 0.08}s` }}
               >
                 <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-lg group-hover:scale-110 transition-transform`}>

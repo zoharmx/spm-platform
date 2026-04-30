@@ -54,6 +54,8 @@ const translations = {
     services_neumaticos_desc: "Montaje, balanceo y cambio de llanta en sitio.",
     services_bateria: "Batería",
     services_bateria_desc: "Diagnóstico, carga y reemplazo de batería.",
+    services_lavado: "Lavado de Moto",
+    services_lavado_desc: "Lavado exterior, limpieza de motor y brillado. Tu moto impecable.",
 
     // Tracking
     tracking_badge: "Tracking en Vivo",
@@ -219,6 +221,8 @@ const translations = {
     services_neumaticos_desc: "Mounting, balancing, and on-site tire replacement.",
     services_bateria: "Battery",
     services_bateria_desc: "Diagnostics, charging, and battery replacement.",
+    services_lavado: "Bike Wash",
+    services_lavado_desc: "Exterior wash, engine cleaning, and polish. Your bike spotless.",
 
     // Tracking
     tracking_badge: "Live Tracking",

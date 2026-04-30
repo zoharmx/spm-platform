@@ -10,8 +10,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import {
   LayoutDashboard, Ticket, Users, Wrench, FileText, CreditCard,
   Phone, BarChart3, Settings, LogOut, Menu, X,
-  Sun, Moon, Globe, Loader2,
+  Sun, Moon, Globe, Loader2, Bot,
 } from "lucide-react";
+import CrmAiPanel from "@/components/crm/CrmAiPanel";
 
 const NAV_ITEMS = [
   { href: "/crm/dashboard",      label: "Dashboard",       icon: LayoutDashboard },
@@ -38,6 +39,7 @@ export default function CrmShell({ title, subtitle, children }: CrmShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -162,13 +164,32 @@ export default function CrmShell({ title, subtitle, children }: CrmShellProps) {
           >
             {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className={`font-display font-bold text-lg ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h1>
             {subtitle && (
               <p className={`text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>{subtitle}</p>
             )}
           </div>
+
+          {/* AI Assistant button */}
+          <button
+            onClick={() => setAiPanelOpen((v) => !v)}
+            title="Asistente IA SPM"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              aiPanelOpen
+                ? "bg-[var(--color-spm-red)] text-white"
+                : isDark
+                ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                : "bg-gray-100 text-slate-600 hover:bg-gray-200"
+            }`}
+          >
+            <Bot size={14} />
+            <span className="hidden sm:inline">Asistente IA</span>
+          </button>
         </header>
+
+        {/* CRM AI Panel */}
+        {aiPanelOpen && <CrmAiPanel onClose={() => setAiPanelOpen(false)} />}
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-8">
