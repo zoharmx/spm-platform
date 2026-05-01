@@ -26,11 +26,14 @@ interface ISpeechRecognitionCtor {
 }
 
 const QUICK_PROMPTS = [
-  "Dame el resumen de la operación de hoy",
+  "Dame el resumen completo de la operación de hoy",
+  "¿Qué productos tienen stock bajo o están agotados?",
   "¿Hay tickets sin mecánico asignado?",
-  "¿Qué mecánicos están disponibles ahora?",
-  "¿Cuánto se ha facturado hoy?",
+  "¿Cuánto se ha facturado este mes y cómo se distribuye por método de pago?",
+  "Dame el valor total del inventario y los productos más valiosos",
   "Lista los tickets activos más urgentes",
+  "¿Qué mecánicos están disponibles ahora?",
+  "¿Qué productos de la tienda son compatibles con DIMORA?",
 ];
 
 interface Props {
@@ -214,7 +217,7 @@ export default function CrmAiPanel({ onClose }: Props) {
           </p>
           <p className="text-xs text-green-400 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
-            Acceso en tiempo real · Firestore
+            Tickets · Inventario · Pagos · CRM
           </p>
         </div>
         <div className="flex items-center gap-0.5">
@@ -396,7 +399,7 @@ export default function CrmAiPanel({ onClose }: Props) {
             isDark ? "text-slate-700" : "text-slate-400"
           }`}
         >
-          Datos en tiempo real de Firestore · Mistral AI
+          Tickets · Inventario · Clientes · Pagos · Proveedores · Mistral AI
         </p>
       </div>
     </div>
