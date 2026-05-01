@@ -55,7 +55,8 @@ async function sendPaymentLink(ticket: ServiceTicket): Promise<string | null> {
   }
 }
 import { subscribeMechanics } from "@/lib/firestore/mechanics";
-import type { ServiceTicket, ServiceTicketStatus, Mechanic, Client, PaymentMethod } from "@/types";
+import { subscribeActiveProducts, adjustStock } from "@/lib/firestore/products";
+import type { ServiceTicket, ServiceTicketStatus, Mechanic, Client, PaymentMethod, Product, PartItem } from "@/types";
 import {
   STATUS_LABELS, STATUS_COLORS, SERVICE_LABELS, NEXT_STATUS, STATUS_PIPELINE,
   PAYMENT_METHOD_LABELS,
@@ -65,7 +66,7 @@ import {
   User, Phone, MapPin, Wrench, Clock, CheckCircle2,
   AlertCircle, DollarSign, ChevronDown, CreditCard, Printer,
   Inbox, Stethoscope, Truck, Ban, Receipt, FileText, Banknote,
-  ArrowRight, Check,
+  ArrowRight, Check, Package, Trash2,
 } from "lucide-react";
 import { generateInvoicePDF, generatePartialInvoicePDF, generatePaymentReceiptPDF } from "@/lib/invoice-pdf";
 import toast, { Toaster } from "react-hot-toast";
@@ -354,6 +355,17 @@ function TicketDrawer({
   const [payNote, setPayNote]                 = useState("");
   const [payLoading, setPayLoading]           = useState(false);
 
+  // Parts from catalog
+  const [products, setProducts]       = useState<Product[]>([]);
+  const [parts, setParts]             = useState<PartItem[]>([]);
+  const [partSearch, setPartSearch]   = useState("");
+  const [partDropdown, setPartDropdown] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeActiveProducts(setProducts);
+    return unsub;
+  }, []);
+
   useEffect(() => {
     if (ticket) {
       setCosts({
@@ -363,6 +375,9 @@ function TicketDrawer({
       });
       setDiagnosis(ticket.diagnosis ?? "");
       setSelectedMechanic(ticket.mechanicId ?? "");
+      setParts(ticket.parts ?? []);
+      setPartSearch("");
+      setPartDropdown(false);
     }
   }, [ticket?.id]);
 
@@ -381,6 +396,18 @@ function TicketDrawer({
 
       // Auto-send WhatsApp notification
       await notifyStatusChange(ticket!, nextStatus);
+
+      // Deduct stock for parts when ticket is completed
+      if (nextStatus === "completado") {
+        const partsWithId = parts.filter(p => p.productId);
+        for (const part of partsWithId) {
+          try {
+            await adjustStock(part.productId!, -part.qty, { type: "uso-servicio", reference: ticket!.id, note: `Ticket ${ticket!.ticketId}`, createdBy: userId });
+          } catch (e) {
+            console.warn("[CRM] Stock deduction failed for", part.productId, e);
+          }
+        }
+      }
 
       // If advancing to "completado" and finalCost exists, offer payment link
       if (nextStatus === "completado" && ticket!.finalCost && ticket!.clientPhone) {
@@ -482,11 +509,40 @@ function TicketDrawer({
         ...(costs.anticipo   !== "" ? { anticipo:      Number(costs.anticipo)  } : {}),
         ...(diagnosis        !== "" ? { diagnosis }                              : {}),
         ...(selectedMechanic        ? { mechanicId: selectedMechanic, mechanicName: mechanic?.name } : {}),
+        parts,
       });
       toast.success("Actualizado");
       setEditCost(false);
     } catch { toast.error("Error al guardar"); }
     finally { setSaving(false); }
+  }
+
+  function addPartFromCatalog(product: Product) {
+    const existing = parts.findIndex(p => p.productId === product.id);
+    if (existing >= 0) {
+      setParts(prev => prev.map((p, i) => i === existing
+        ? { ...p, qty: p.qty + 1, total: (p.qty + 1) * p.unitCost }
+        : p
+      ));
+    } else {
+      setParts(prev => [...prev, {
+        productId: product.id,
+        name: product.shortName ?? product.name,
+        qty: 1,
+        unitCost: product.salePrice,
+        total: product.salePrice,
+      }]);
+    }
+    setPartSearch("");
+    setPartDropdown(false);
+  }
+
+  function updatePartQty(index: number, qty: number) {
+    if (qty <= 0) {
+      setParts(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setParts(prev => prev.map((p, i) => i === index ? { ...p, qty, total: qty * p.unitCost } : p));
+    }
   }
 
   const inputCls = `w-full px-3 py-2 rounded-xl border text-sm outline-none transition-all focus:ring-1 focus:ring-[var(--color-spm-red)]/30 focus:border-[var(--color-spm-red)] ${
@@ -609,6 +665,87 @@ function TicketDrawer({
                     <p className={`font-bold text-sm ${isDark ? "text-white" : "text-slate-900"}`}>
                       {value != null ? `$${value.toLocaleString("es-MX")}` : "—"}
                     </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Partes del catálogo ────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Package size={14} className="text-[var(--color-spm-red)]" />
+              <span className={`text-xs font-semibold uppercase tracking-wide flex-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>Partes usadas</span>
+              {parts.length > 0 && (
+                <span className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  Total: ${parts.reduce((s, p) => s + p.total, 0).toLocaleString("es-MX")}
+                </span>
+              )}
+            </div>
+
+            {/* Search bar */}
+            <div className="relative mb-2">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className={inputCls + " pl-8 text-sm"}
+                placeholder="Buscar parte del catálogo..."
+                value={partSearch}
+                onChange={e => { setPartSearch(e.target.value); setPartDropdown(true); }}
+                onFocus={() => setPartDropdown(true)}
+                onBlur={() => setTimeout(() => setPartDropdown(false), 180)}
+              />
+              {partDropdown && partSearch.trim() && (
+                <div className={`absolute top-full left-0 right-0 mt-1 rounded-xl border shadow-xl z-20 max-h-48 overflow-y-auto ${isDark ? "bg-slate-800 border-white/10" : "bg-white border-gray-200"}`}>
+                  {products
+                    .filter(p => {
+                      const q = partSearch.toLowerCase();
+                      return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.shortName ?? "").toLowerCase().includes(q);
+                    })
+                    .slice(0, 8)
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onMouseDown={() => addPartFromCatalog(p)}
+                        className={`w-full text-left px-3 py-2.5 flex items-center justify-between hover:bg-[var(--color-spm-red)]/10 transition-colors border-b last:border-0 ${isDark ? "border-white/5" : "border-gray-100"}`}
+                      >
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-900"}`}>{p.shortName ?? p.name}</p>
+                          <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>{p.sku} · stock: {p.stock}</p>
+                        </div>
+                        <span className={`text-xs font-semibold ml-3 flex-shrink-0 ${isDark ? "text-slate-300" : "text-slate-700"}`}>${p.salePrice.toLocaleString("es-MX")}</span>
+                      </button>
+                    ))
+                  }
+                  {products.filter(p => { const q = partSearch.toLowerCase(); return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q); }).length === 0 && (
+                    <div className="px-4 py-3 text-center">
+                      <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>Sin resultados</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Parts list */}
+            {parts.length > 0 && (
+              <div className="space-y-1.5">
+                {parts.map((part, i) => (
+                  <div key={i} className={`flex items-center gap-2 p-2.5 rounded-xl ${isDark ? "bg-slate-800/60" : "bg-slate-50"}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${isDark ? "text-white" : "text-slate-900"}`}>{part.name}</p>
+                      <p className={`text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>${part.unitCost.toLocaleString("es-MX")} c/u</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button onClick={() => updatePartQty(i, part.qty - 1)}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-colors ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-gray-200 hover:bg-gray-300 text-slate-700"}`}>−</button>
+                      <span className={`text-sm font-semibold w-6 text-center ${isDark ? "text-white" : "text-slate-900"}`}>{part.qty}</span>
+                      <button onClick={() => updatePartQty(i, part.qty + 1)}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center text-xs transition-colors ${isDark ? "bg-slate-700 hover:bg-slate-600 text-white" : "bg-gray-200 hover:bg-gray-300 text-slate-700"}`}>+</button>
+                      <button onClick={() => setParts(prev => prev.filter((_, j) => j !== i))}
+                        className="w-6 h-6 rounded-md flex items-center justify-center text-red-400 hover:bg-red-500/10 transition-colors ml-0.5">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

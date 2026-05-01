@@ -73,7 +73,7 @@ export async function assignMechanic(
 /** Update editable fields on a ticket. */
 export async function updateTicketFields(
   ticketId: string,
-  fields: Partial<Pick<ServiceTicket, "estimatedCost" | "finalCost" | "diagnosis" | "workDone" | "mechanicId" | "mechanicName" | "anticipo">>
+  fields: Partial<Pick<ServiceTicket, "estimatedCost" | "finalCost" | "diagnosis" | "workDone" | "mechanicId" | "mechanicName" | "anticipo" | "parts">>
 ): Promise<void> {
   const db = getDb();
   await updateDoc(doc(db, COL, ticketId), {

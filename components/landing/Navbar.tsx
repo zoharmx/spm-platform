@@ -24,6 +24,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "#servicios", label: t("nav_services") },
     { href: "#tracking", label: t("nav_tracking") },
+    { href: "/tienda", label: "Tienda" },
     { href: "#cotizar", label: t("nav_quote") },
     { href: "#contacto", label: t("nav_contact") },
   ];

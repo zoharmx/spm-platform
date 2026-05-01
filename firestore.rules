@@ -99,5 +99,35 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Product Catalog ──────────────────────────────────────────────────────
+    match /products/{productId} {
+      // Anyone (including unauthenticated) can read active products — public marketplace
+      allow read: if true;
+      // Managers+ can create and update; Admins can delete (soft-delete via isActive)
+      allow create, update: if hasRole('manager');
+      allow delete: if hasRole('admin');
+    }
+
+    // ── Vendors (Proveedores) ────────────────────────────────────────────────
+    match /vendors/{vendorId} {
+      allow read: if hasRole('operador');
+      allow create, update: if hasRole('manager');
+      allow delete: if hasRole('admin');
+    }
+
+    // ── Purchase Orders (Órdenes de Compra) ──────────────────────────────────
+    match /purchase_orders/{orderId} {
+      allow read: if hasRole('manager');
+      allow create, update: if hasRole('manager');
+      allow delete: if hasRole('admin');
+    }
+
+    // ── Inventory Movements (Bitácora) ───────────────────────────────────────
+    // Written exclusively server-side via Admin SDK — no client writes
+    match /inventory_movements/{movementId} {
+      allow read: if hasRole('manager');
+      allow write: if false;
+    }
+
   }
 }

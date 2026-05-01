@@ -155,6 +155,7 @@ export interface Mechanic {
 // ============================================================
 
 export interface PartItem {
+  productId?: string; // Optional link to Product in catalog
   name: string;
   qty: number;
   unitCost: number;
@@ -387,4 +388,176 @@ export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   anticipo: "Anticipo",
   parcial: "Pago parcial",
   final: "Pago final",
+};
+
+// ============================================================
+// Inventory — Product Catalog
+// ============================================================
+
+export type ProductCategory =
+  | "motor"
+  | "transmision"
+  | "suspension"
+  | "frenos"
+  | "electrico"
+  | "neumaticos"
+  | "lubricantes"
+  | "carroceria"
+  | "encendido"
+  | "herramientas"
+  | "accesorios"
+  | "otro";
+
+export type ProductUnit = "PZA" | "LT" | "KIT" | "PAR" | "JGO" | "MT";
+
+export interface Product {
+  id: string;
+  sku: string;              // PRD-XXXXX
+  name: string;             // Full description (from supplier invoice)
+  shortName?: string;       // Short display name for UI
+  category: ProductCategory;
+  unit: ProductUnit;
+  compatibleModels: string[]; // e.g. ["FT150", "DM200", "125Z"]
+  vendorId?: string;
+  vendorSku?: string;
+  costPrice: number;        // Wholesale price (proveedor)
+  salePrice: number;        // Retail price (cliente)
+  stock: number;            // Current units in stock
+  minStock: number;         // Reorder threshold
+  imageUrls?: string[];
+  isActive: boolean;
+  isFeatured?: boolean;
+  tags?: string[];
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+// ============================================================
+// Inventory — Vendor (Proveedor)
+// ============================================================
+
+export interface Vendor {
+  id: string;
+  vendorId: string;  // PROV-XXXX
+  name: string;
+  rfc?: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  address?: Address;
+  isActive: boolean;
+  notes?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+// ============================================================
+// Inventory — Purchase Order (Orden de Compra)
+// ============================================================
+
+export type PurchaseOrderStatus =
+  | "borrador"
+  | "enviada"
+  | "recibida-parcial"
+  | "recibida-completa"
+  | "cancelada";
+
+export interface PurchaseOrderItem {
+  productId?: string;   // Optional: links to catalog product
+  productName: string;  // Snapshot
+  sku?: string;
+  unit: ProductUnit;
+  qty: number;
+  unitCost: number;
+  total: number;
+  receivedQty?: number; // For partial receipts
+}
+
+export interface PurchaseOrder {
+  id: string;
+  orderId: string;       // OC-YYYY-XXXXX
+  vendorId: string;
+  vendorName: string;
+  items: PurchaseOrderItem[];
+  subtotal: number;
+  total: number;
+  status: PurchaseOrderStatus;
+  notes?: string;
+  invoiceRef?: string;   // External nota de venta / invoice number
+  receivedAt?: Timestamp;
+  createdBy: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+// ============================================================
+// Inventory — Movement Log (Bitácora)
+// ============================================================
+
+export type InventoryMovementType =
+  | "compra"          // Received from supplier
+  | "venta-tienda"    // Sold via marketplace
+  | "uso-servicio"    // Used in a service ticket
+  | "ajuste-entrada"  // Manual positive adjustment
+  | "ajuste-salida"   // Manual negative adjustment
+  | "devolucion";     // Customer return
+
+export interface InventoryMovement {
+  id: string;
+  productId: string;
+  productName: string;    // Snapshot at time of movement
+  type: InventoryMovementType;
+  qty: number;            // Positive = in, Negative = out
+  stockBefore: number;
+  stockAfter: number;
+  unitCost?: number;
+  reference?: string;     // ticketId, orderId, orderId, etc.
+  note?: string;
+  createdBy: string;
+  createdAt?: Timestamp;
+}
+
+// ============================================================
+// Inventory — Helpers / Labels
+// ============================================================
+
+export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
+  motor: "Motor",
+  transmision: "Transmisión",
+  suspension: "Suspensión",
+  frenos: "Frenos",
+  electrico: "Sistema Eléctrico",
+  neumaticos: "Neumáticos",
+  lubricantes: "Lubricantes",
+  carroceria: "Carrocería",
+  encendido: "Encendido",
+  herramientas: "Herramientas",
+  accesorios: "Accesorios",
+  otro: "Otro",
+};
+
+export const PRODUCT_UNIT_LABELS: Record<ProductUnit, string> = {
+  PZA: "Pieza",
+  LT: "Litro",
+  KIT: "Kit",
+  PAR: "Par",
+  JGO: "Juego",
+  MT: "Metro",
+};
+
+export const PURCHASE_ORDER_STATUS_LABELS: Record<PurchaseOrderStatus, string> = {
+  borrador: "Borrador",
+  enviada: "Enviada",
+  "recibida-parcial": "Recibida Parcial",
+  "recibida-completa": "Recibida Completa",
+  cancelada: "Cancelada",
+};
+
+export const INVENTORY_MOVEMENT_LABELS: Record<InventoryMovementType, string> = {
+  compra: "Compra a proveedor",
+  "venta-tienda": "Venta en tienda",
+  "uso-servicio": "Uso en servicio",
+  "ajuste-entrada": "Ajuste (entrada)",
+  "ajuste-salida": "Ajuste (salida)",
+  devolucion: "Devolución",
 };
