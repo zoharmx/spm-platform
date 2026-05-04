@@ -41,7 +41,7 @@ export interface CreateCheckoutParams {
   serviceDescription: string;
   serviceType: string;
   amountMXN: number;       // Final cost in MXN (whole number, e.g. 850)
-  type?: "anticipo" | "servicio"; // anticipo = deposit before field visit; default "servicio"
+  type?: "anticipo" | "parcial" | "servicio"; // anticipo = deposit; parcial = partial payment; default "servicio"
 }
 
 export interface CheckoutResult {
@@ -107,6 +107,88 @@ export async function createCheckoutSession(params: CreateCheckoutParams): Promi
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Stripe] Failed to create session for ${params.ticketId}: ${msg}`);
+    return { success: false, error: msg };
+  }
+}
+
+// ── Store checkout session ────────────────────────────────────────────────────
+
+export interface StoreCheckoutItem {
+  productId: string;
+  sku: string;
+  name: string;
+  qty: number;
+  unitPrice: number; // MXN
+}
+
+export interface CreateStoreCheckoutParams {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  items: StoreCheckoutItem[];
+  shippingCost: number;
+  totalMXN: number;
+}
+
+export async function createStoreCheckoutSession(
+  params: CreateStoreCheckoutParams
+): Promise<CheckoutResult> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://spm-platform.vercel.app";
+  try {
+    const stripe = getStripe();
+
+    type LineItem = NonNullable<Stripe.Checkout.SessionCreateParams["line_items"]>[number];
+    const lineItems: LineItem[] = params.items.map(item => ({
+      price_data: {
+        currency: "mxn",
+        product_data: {
+          name: item.name,
+          metadata: { sku: item.sku, productId: item.productId },
+        },
+        unit_amount: Math.round(item.unitPrice * 100),
+      },
+      quantity: item.qty,
+    }));
+
+    if (params.shippingCost > 0) {
+      lineItems.push({
+        price_data: {
+          currency: "mxn",
+          product_data: { name: "Envío" },
+          unit_amount: Math.round(params.shippingCost * 100),
+        },
+        quantity: 1,
+      });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      currency: "mxn",
+      line_items: lineItems,
+      customer_email: params.customerEmail,
+      metadata: {
+        orderId:       params.orderId,
+        clientName:    params.customerName,
+        clientPhone:   params.customerPhone,
+        platform:      "spm-platform",
+        type:          "store_order",
+      },
+      success_url: `${appUrl}/tienda/confirmacion?orderId=${params.orderId}&status=success`,
+      cancel_url:  `${appUrl}/tienda?cancelado=1`,
+      expires_at:  Math.floor(Date.now() / 1000) + 60 * 60 * 2, // 2h
+      payment_intent_data: {
+        description: `Tienda SPM — Pedido ${params.orderId}`,
+        metadata: { orderId: params.orderId, clientPhone: params.customerPhone },
+      },
+    });
+
+    console.info(`[Stripe] Store session created for ${params.orderId} | ID: ${session.id}`);
+    return { success: true, url: session.url ?? undefined, sessionId: session.id };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[Stripe] Store session failed for ${params.orderId}: ${msg}`);
     return { success: false, error: msg };
   }
 }

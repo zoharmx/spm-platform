@@ -66,7 +66,7 @@ import {
   User, Phone, MapPin, Wrench, Clock, CheckCircle2,
   AlertCircle, DollarSign, ChevronDown, CreditCard, Printer,
   Inbox, Stethoscope, Truck, Ban, Receipt, FileText, Banknote,
-  ArrowRight, Check, Package, Trash2,
+  ArrowRight, Check, Package, Trash2, Copy, ExternalLink,
 } from "lucide-react";
 import { generateInvoicePDF, generatePartialInvoicePDF, generatePaymentReceiptPDF } from "@/lib/invoice-pdf";
 import toast, { Toaster } from "react-hot-toast";
@@ -329,6 +329,71 @@ function CreateTicketModal({
   );
 }
 
+function printPaymentOrder(ticket: ServiceTicket, url: string) {
+  const win = window.open("", "_blank", "width=700,height=620");
+  if (!win) return;
+  const amount = ticket.finalCost?.toLocaleString("es-MX") ?? "—";
+  const serviceLabel = SERVICE_LABELS[ticket.serviceType as keyof typeof SERVICE_LABELS] ?? ticket.serviceType;
+  const today = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+  win.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Orden de Pago — ${ticket.ticketId}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:40px;color:#1e293b;background:#fff}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:20px;border-bottom:2px solid #e2e8f0}
+    .logo{font-size:22px;font-weight:800;color:#dc2626;letter-spacing:-0.5px}
+    .badge{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;border:1px solid #e2e8f0;padding:4px 10px;border-radius:20px}
+    h1{font-size:26px;font-weight:800;margin-bottom:4px}
+    .tid{font-size:14px;color:#dc2626;font-family:monospace;font-weight:600;margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+    .cell{padding:12px 14px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0}
+    .lbl{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;margin-bottom:3px}
+    .val{font-size:14px;font-weight:600;color:#1e293b}
+    .amt{background:#fff5f5;border:2px solid #fecaca;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px}
+    .amt-lbl{font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+    .amt-val{font-size:38px;font-weight:900;color:#dc2626}
+    .link-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px;margin-bottom:20px}
+    .link-lbl{font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+    .link-url{font-size:12px;color:#0f172a;word-break:break-all;background:white;border:1px solid #d1fae5;border-radius:8px;padding:10px 12px;font-family:monospace;line-height:1.5}
+    .validity{font-size:12px;color:#64748b;text-align:center;margin-bottom:28px}
+    .footer{font-size:11px;color:#94a3b8;text-align:center;padding-top:16px;border-top:1px solid #e2e8f0}
+    .print-btn{position:fixed;top:16px;right:16px;padding:9px 20px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(220,38,38,.25)}
+    @media print{.print-btn{display:none}}
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Guardar / Imprimir</button>
+  <div class="header">
+    <div class="logo">SanPedroMotoCare</div>
+    <div class="badge">Orden de pago</div>
+  </div>
+  <h1>Orden de Pago</h1>
+  <div class="tid">${ticket.ticketId}</div>
+  <div class="grid">
+    <div class="cell"><div class="lbl">Cliente</div><div class="val">${ticket.clientName ?? "—"}</div></div>
+    <div class="cell"><div class="lbl">Teléfono</div><div class="val">${ticket.clientPhone ?? "—"}</div></div>
+    <div class="cell"><div class="lbl">Servicio</div><div class="val">${serviceLabel}</div></div>
+    <div class="cell"><div class="lbl">Fecha</div><div class="val">${today}</div></div>
+  </div>
+  <div class="amt">
+    <div class="amt-lbl">Total a pagar</div>
+    <div class="amt-val">$${amount} <span style="font-size:18px">MXN</span></div>
+  </div>
+  <div class="link-box">
+    <div class="link-lbl">🔒 Link de pago seguro (Stripe)</div>
+    <div class="link-url">${url}</div>
+  </div>
+  <p class="validity">⏱ El link es válido por 24 horas a partir de su generación</p>
+  <div class="footer">SanPedroMotoCare · Servicio de reparación y mantenimiento de motocicletas a domicilio</div>
+</body>
+</html>`);
+  win.document.close();
+  win.focus();
+}
+
 // ── Ticket Detail Drawer ───────────────────────────────────────
 function TicketDrawer({
   ticket, mechanics, isDark, userId, onClose,
@@ -354,6 +419,11 @@ function TicketDrawer({
   const [payMethod, setPayMethod]             = useState<PaymentMethod>("efectivo");
   const [payNote, setPayNote]                 = useState("");
   const [payLoading, setPayLoading]           = useState(false);
+  const [generatedPaymentUrl, setGeneratedPaymentUrl] = useState<string | null>(null);
+  const [generatedAnticipoUrl, setGeneratedAnticipoUrl] = useState<string | null>(null);
+  const [showLinkForm, setShowLinkForm]               = useState(false);
+  const [linkAmount, setLinkAmount]                   = useState("");
+  const [linkSendWa, setLinkSendWa]                   = useState(true);
 
   // Parts from catalog
   const [products, setProducts]       = useState<Product[]>([]);
@@ -378,6 +448,10 @@ function TicketDrawer({
       setParts(ticket.parts ?? []);
       setPartSearch("");
       setPartDropdown(false);
+      setShowLinkForm(false);
+      setLinkAmount("");
+      setLinkSendWa(true);
+      setGeneratedPaymentUrl(null);
     }
   }, [ticket?.id]);
 
@@ -438,15 +512,43 @@ function TicketDrawer({
   }
 
   async function handleSendPaymentLink() {
-    if (!ticket!.finalCost || !ticket!.clientPhone) {
-      toast.error("Configura el costo final antes de enviar el link de pago");
+    const amount = Number(linkAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Ingresa un monto válido");
+      return;
+    }
+    if (!ticket!.clientPhone) {
+      toast.error("El ticket no tiene teléfono de cliente registrado");
       return;
     }
     setSendingLink(true);
     try {
-      const url = await sendPaymentLink(ticket!);
-      if (url) toast.success("Link de pago enviado por WhatsApp ✅");
-      else toast.error("No se pudo generar el link de pago");
+      const remaining = (ticket!.finalCost ?? 0) - (ticket!.totalPaid ?? 0);
+      const payType   = amount >= remaining ? "servicio" : "parcial";
+      const res = await fetch("/api/payments/create-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticketId:           ticket!.ticketId,
+          clientName:         ticket!.clientName ?? "Cliente",
+          clientPhone:        ticket!.clientPhone,
+          serviceDescription: ticket!.serviceDescription,
+          serviceType:        ticket!.serviceType,
+          amountMXN:          amount,
+          sendWhatsApp:       linkSendWa,
+          type:               payType,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        setGeneratedPaymentUrl(data.url);
+        setShowLinkForm(false);
+        toast.success(linkSendWa ? "Link generado y enviado por WhatsApp ✅" : "Link generado ✅");
+      } else {
+        toast.error("No se pudo generar el link de pago");
+      }
+    } catch {
+      toast.error("Error al generar el link");
     } finally { setSendingLink(false); }
   }
 
@@ -492,8 +594,12 @@ function TicketDrawer({
         }),
       });
       const data = await res.json();
-      if (data.url) toast.success(`Anticipo $${anticipoAmount} enviado por WhatsApp ✅`);
-      else toast.error("No se pudo generar el link de anticipo");
+      if (data.url) {
+        setGeneratedAnticipoUrl(data.url);
+        toast.success(`Anticipo $${anticipoAmount} enviado por WhatsApp ✅`);
+      } else {
+        toast.error("No se pudo generar el link de anticipo");
+      }
     } catch {
       toast.error("Error al generar el anticipo");
     } finally { setSendingAnticipo(false); }
@@ -788,6 +894,31 @@ function TicketDrawer({
                 {sendingAnticipo ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
                 {ticket.anticipoLinkUrl ? "Reenviar link de anticipo" : `Cobrar visita ($${anticipoAmount})`}
               </button>
+
+              {/* Anticipo URL panel */}
+              {(generatedAnticipoUrl || ticket.anticipoLinkUrl) && (
+                <div className={`mt-2 p-3 rounded-xl border space-y-2 ${isDark ? "border-amber-900/40 bg-amber-950/20" : "border-amber-200 bg-amber-50"}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? "text-amber-400" : "text-amber-700"}`}>
+                    URL de anticipo
+                  </p>
+                  <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border text-xs font-mono ${isDark ? "bg-slate-800 border-white/10 text-slate-300" : "bg-white border-gray-200 text-slate-700"}`}>
+                    <span className="flex-1 truncate">{generatedAnticipoUrl ?? ticket.anticipoLinkUrl}</span>
+                    <a href={generatedAnticipoUrl ?? ticket.anticipoLinkUrl ?? ""} target="_blank" rel="noopener noreferrer"
+                      className="text-amber-500 hover:text-amber-400 flex-shrink-0">
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(generatedAnticipoUrl ?? ticket.anticipoLinkUrl ?? "").then(() => toast.success("URL copiada"))}
+                    className={`w-full py-2 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                      isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-300 text-slate-600 hover:bg-gray-100"
+                    }`}>
+                    <Copy size={11} />
+                    Copiar URL del anticipo
+                  </button>
+                </div>
+              )}
+
               {ticket.anticipoPagado && (
                 <p className="text-xs text-green-400 text-center mt-2 font-medium">
                   ✓ Anticipo recibido — mecánico autorizado a salir
@@ -840,12 +971,102 @@ function TicketDrawer({
 
               {!showPayForm ? (
                 <div className="space-y-2">
-                  <button onClick={handleSendPaymentLink} disabled={sendingLink}
-                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                    {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <CreditCard size={14} />}
-                    {ticket.paymentLinkUrl ? "Reenviar link de Stripe" : "Cobrar con Stripe"}
-                  </button>
-                  <button onClick={() => { setShowPayForm(true); setPayAmount(Math.max(0, ticket.finalCost! - (ticket.totalPaid ?? 0)).toString()); }}
+
+                  {/* ── URL panel — visible once a link is generated ──────── */}
+                  {(generatedPaymentUrl || ticket.paymentLinkUrl) && (
+                    <div className={`p-3 rounded-xl border space-y-2 ${isDark ? "border-emerald-900/40 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+                      <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
+                        Link de pago activo
+                      </p>
+                      <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border text-xs font-mono ${isDark ? "bg-slate-800 border-white/10 text-slate-300" : "bg-white border-gray-200 text-slate-700"}`}>
+                        <span className="flex-1 truncate">{generatedPaymentUrl ?? ticket.paymentLinkUrl}</span>
+                        <a href={generatedPaymentUrl ?? ticket.paymentLinkUrl ?? ""} target="_blank" rel="noopener noreferrer"
+                          className="text-emerald-500 hover:text-emerald-400 flex-shrink-0">
+                          <ExternalLink size={12} />
+                        </a>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigator.clipboard.writeText(generatedPaymentUrl ?? ticket.paymentLinkUrl ?? "").then(() => toast.success("URL copiada"))}
+                          className={`flex-1 py-2 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                            isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-300 text-slate-600 hover:bg-gray-100"
+                          }`}>
+                          <Copy size={11} />
+                          Copiar URL
+                        </button>
+                        <button
+                          onClick={() => printPaymentOrder(ticket, generatedPaymentUrl ?? ticket.paymentLinkUrl ?? "")}
+                          className={`flex-1 py-2 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                            isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-300 text-slate-600 hover:bg-gray-100"
+                          }`}>
+                          <Printer size={11} />
+                          Imprimir orden
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Stripe link form ─────────────────────────────────── */}
+                  {showLinkForm ? (
+                    <div className={`p-3 rounded-xl border space-y-2.5 ${isDark ? "border-emerald-900/30 bg-emerald-950/10" : "border-emerald-200 bg-emerald-50/60"}`}>
+                      <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
+                        Generar link de pago (Stripe)
+                      </p>
+                      {/* Amount */}
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+                        <input
+                          type="number" min={1} autoFocus
+                          className={inputCls + " pl-7"}
+                          placeholder="Monto a cobrar (MXN)"
+                          value={linkAmount}
+                          onChange={e => setLinkAmount(e.target.value)}
+                        />
+                      </div>
+                      {/* WhatsApp toggle */}
+                      <label className={`flex items-center gap-2 cursor-pointer select-none`}>
+                        <input
+                          type="checkbox"
+                          checked={linkSendWa}
+                          onChange={e => setLinkSendWa(e.target.checked)}
+                          className="rounded accent-emerald-500"
+                        />
+                        <span className={`text-xs ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                          Enviar por WhatsApp al cliente
+                        </span>
+                      </label>
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowLinkForm(false)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-all ${isDark ? "border-white/10 text-slate-300" : "border-gray-200 text-slate-600"}`}>
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={sendingLink || !linkAmount || Number(linkAmount) <= 0}
+                          onClick={handleSendPaymentLink}
+                          className="flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 flex items-center justify-center gap-1.5 transition-all">
+                          {sendingLink ? <Loader2 size={12} className="animate-spin" /> : <CreditCard size={12} />}
+                          Generar link
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const rem = Math.max(0, (ticket.finalCost ?? 0) - (ticket.totalPaid ?? 0));
+                        setLinkAmount(rem > 0 ? rem.toString() : "");
+                        setShowLinkForm(true);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                      <CreditCard size={14} />
+                      {ticket.paymentLinkUrl ? "Nuevo link de pago (Stripe)" : "Generar link de pago (Stripe)"}
+                    </button>
+                  )}
+
+                  <button onClick={() => { setShowPayForm(true); setShowLinkForm(false); setPayAmount(Math.max(0, ticket.finalCost! - (ticket.totalPaid ?? 0)).toString()); }}
                     className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 border ${
                       isDark ? "border-white/10 text-slate-200 hover:bg-white/5" : "border-gray-300 text-slate-700 hover:bg-gray-100"
                     }`}>
@@ -914,13 +1135,38 @@ function TicketDrawer({
             </div>
           )}
 
-          {/* Resend link — payment link exists but ticket not yet completed/paid */}
-          {ticket.status !== "completado" && ticket.status !== "pagado" && ticket.paymentLinkUrl && ticket.finalCost && (
-            <button onClick={handleSendPaymentLink} disabled={sendingLink}
-              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-              {sendingLink ? <Loader2 size={14} className="animate-spin" /> : <DollarSign size={14} />}
-              Reenviar link de pago
-            </button>
+          {/* Link panel — ticket has a payment link but isn't at completado/pagado yet */}
+          {ticket.status !== "completado" && ticket.status !== "en-servicio" && ticket.status !== "pagado" && (generatedPaymentUrl || ticket.paymentLinkUrl) && (
+            <div className={`p-3 rounded-xl border space-y-2 ${isDark ? "border-emerald-900/40 bg-emerald-950/20" : "border-emerald-200 bg-emerald-50"}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-wide ${isDark ? "text-emerald-400" : "text-emerald-700"}`}>
+                Link de pago activo
+              </p>
+              <div className={`flex items-center gap-2 rounded-lg px-3 py-2 border text-xs font-mono ${isDark ? "bg-slate-800 border-white/10 text-slate-300" : "bg-white border-gray-200 text-slate-700"}`}>
+                <span className="flex-1 truncate">{generatedPaymentUrl ?? ticket.paymentLinkUrl}</span>
+                <a href={generatedPaymentUrl ?? ticket.paymentLinkUrl ?? ""} target="_blank" rel="noopener noreferrer"
+                  className="text-emerald-500 hover:text-emerald-400 flex-shrink-0">
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => navigator.clipboard.writeText(generatedPaymentUrl ?? ticket.paymentLinkUrl ?? "").then(() => toast.success("URL copiada"))}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                    isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-300 text-slate-600 hover:bg-gray-100"
+                  }`}>
+                  <Copy size={11} />
+                  Copiar URL
+                </button>
+                <button
+                  onClick={() => ticket.finalCost && printPaymentOrder(ticket, generatedPaymentUrl ?? ticket.paymentLinkUrl ?? "")}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-semibold flex items-center justify-center gap-1.5 border transition-all ${
+                    isDark ? "border-white/10 text-slate-300 hover:bg-white/5" : "border-gray-300 text-slate-600 hover:bg-gray-100"
+                  }`}>
+                  <Printer size={11} />
+                  Imprimir orden
+                </button>
+              </div>
+            </div>
           )}
 
           {/* PDF buttons — visible for completed or paid tickets */}

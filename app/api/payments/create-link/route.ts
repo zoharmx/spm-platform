@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     serviceType: string;
     amountMXN: number;
     sendWhatsApp?: boolean;
-    type?: "anticipo" | "servicio";
+    type?: "anticipo" | "parcial" | "servicio";
   };
 
   try { body = await req.json(); }
@@ -67,7 +67,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "amountMXN must be between 1 and 500,000" }, { status: 400 });
   }
 
-  const paymentType = body.type === "anticipo" ? "anticipo" : "servicio";
+  // "anticipo" keeps its own flow; "parcial" and "servicio" both go through
+  // the same Stripe session flow — the webhook distinguishes parcial vs final by amounts.
+  const paymentType = body.type === "anticipo" ? "anticipo" : (body.type ?? "servicio");
 
   // ── Create Stripe Checkout Session ─────────────────────────────────────────
   const checkout = await createCheckoutSession({

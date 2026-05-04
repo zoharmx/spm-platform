@@ -561,3 +561,83 @@ export const INVENTORY_MOVEMENT_LABELS: Record<InventoryMovementType, string> = 
   "ajuste-salida": "Ajuste (salida)",
   devolucion: "Devolución",
 };
+
+// ============================================================
+// Store Orders — Tienda en línea
+// ============================================================
+
+export type StoreOrderStatus =
+  | "pendiente-pago"      // Stripe session created, awaiting payment
+  | "pendiente-efectivo"  // Cash on delivery/pickup, not yet paid
+  | "pagada"              // Payment confirmed (Stripe webhook or manual)
+  | "preparando"          // Admin is preparing the shipment
+  | "enviada"             // Shipped
+  | "entregada"           // Delivered / picked up
+  | "cancelada";          // Cancelled (stock restored)
+
+export type DeliveryMethod = "envio" | "taller";
+export type StorePaymentMethod = "stripe" | "efectivo";
+
+export interface StoreOrderItem {
+  productId: string;
+  sku: string;
+  name: string;
+  unit: ProductUnit;
+  qty: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface ShippingAddress {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+export interface StoreOrder {
+  id: string;
+  orderId: string;             // ORD-YYYY-XXXXX
+  status: StoreOrderStatus;
+  items: StoreOrderItem[];
+  customer: {
+    name: string;
+    phone: string;
+    email?: string;
+  };
+  delivery: {
+    method: DeliveryMethod;
+    address?: ShippingAddress;
+    shippingCost: number;
+  };
+  paymentMethod: StorePaymentMethod;
+  stripeSessionId?: string;
+  subtotal: number;
+  total: number;
+  notes?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+  paidAt?: Timestamp;
+  shippedAt?: Timestamp;
+  deliveredAt?: Timestamp;
+}
+
+export const STORE_ORDER_STATUS_LABELS: Record<StoreOrderStatus, string> = {
+  "pendiente-pago":     "Pendiente de pago",
+  "pendiente-efectivo": "Pago en entrega",
+  pagada:               "Pagada",
+  preparando:           "Preparando",
+  enviada:              "Enviada",
+  entregada:            "Entregada",
+  cancelada:            "Cancelada",
+};
+
+export const STORE_ORDER_STATUS_COLORS: Record<StoreOrderStatus, string> = {
+  "pendiente-pago":     "bg-amber-500/20 text-amber-400",
+  "pendiente-efectivo": "bg-blue-500/20 text-blue-400",
+  pagada:               "bg-emerald-500/20 text-emerald-400",
+  preparando:           "bg-purple-500/20 text-purple-400",
+  enviada:              "bg-indigo-500/20 text-indigo-400",
+  entregada:            "bg-green-500/20 text-green-400",
+  cancelada:            "bg-red-500/20 text-red-400",
+};
