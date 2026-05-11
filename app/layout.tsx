@@ -68,6 +68,11 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "SPM Mecánico",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     // favicon.png = nuevo logo oficial SanPedroMotoCare (logoSPMC.png)
     icon: [
@@ -77,7 +82,12 @@ export const metadata: Metadata = {
       { url: "/icons/icon-192.png", sizes: "192x192",  type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512",  type: "image/png" },
     ],
-    apple:   "/icons/icon-192.png",
+    apple: [
+      { url: "/icons/icon-192.png"                  },
+      { url: "/icons/icon-192.png", sizes: "180x180" },
+      { url: "/icons/icon-192.png", sizes: "152x152" },
+      { url: "/icons/icon-192.png", sizes: "120x120" },
+    ],
     shortcut:"/favicon.png",
   },
 };
