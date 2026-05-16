@@ -432,7 +432,7 @@ export function generateInvoicePDF(ticket: ServiceTicket): void {
       <div class="footer-left">
         Documento generado el ${new Date().toLocaleDateString("es-MX", { day:"2-digit", month:"long", year:"numeric" })}<br/>
         Folio de servicio: ${ticket.ticketId} · Factura: ${invNum}<br/>
-        Este documento no tiene validez fiscal (CFDI). Para factura fiscal solicítela a contacto@sanpedromotocare.mx
+        Este documento no tiene validez fiscal (CFDI). Para factura fiscal solicítela a admin@sanpedromotocare.com
       </div>
       <div class="footer-right">
         <div class="footer-brand">SanPedroMotoCare</div>

@@ -31,12 +31,14 @@ export const metadata: Metadata = {
     "Monterrey",
     "reparación moto",
     "mantenimiento motocicleta",
+    "mecánico moto Monterrey",
+    "taller moto a domicilio",
   ],
   authors: [{ name: "SanPedroMotoCare" }],
   creator: "SanPedroMotoCare",
   publisher: "SanPedroMotoCare",
   formatDetection: { telephone: true },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://sanpedromotocare.mx"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://sanpedromotocare.com"),
   openGraph: {
     type: "website",
     locale: "es_MX",
@@ -114,6 +116,57 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "AutoRepair",
+              name: "SanPedroMotoCare",
+              description: "Mecánicos certificados de motocicletas a domicilio en San Pedro Garza García y área metropolitana de Monterrey.",
+              url: "https://sanpedromotocare.com",
+              telephone: "+52-81-8168-4518",
+              email: "admin@sanpedromotocare.com",
+              image: "https://sanpedromotocare.com/images/logo.png",
+              logo: "https://sanpedromotocare.com/images/logo.png",
+              priceRange: "$$",
+              currenciesAccepted: "MXN",
+              paymentAccepted: "Cash, Credit Card, Debit Card, Bank Transfer",
+              areaServed: [
+                { "@type": "City", name: "San Pedro Garza García", containedInPlace: { "@type": "State", name: "Nuevo León" } },
+                { "@type": "City", name: "Monterrey", containedInPlace: { "@type": "State", name: "Nuevo León" } },
+                { "@type": "City", name: "Guadalupe", containedInPlace: { "@type": "State", name: "Nuevo León" } },
+                { "@type": "City", name: "Apodaca", containedInPlace: { "@type": "State", name: "Nuevo León" } },
+              ],
+              address: {
+                "@type": "PostalAddress",
+                addressLocality: "San Pedro Garza García",
+                addressRegion: "Nuevo León",
+                addressCountry: "MX",
+              },
+              openingHoursSpecification: [
+                {
+                  "@type": "OpeningHoursSpecification",
+                  dayOfWeek: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+                  opens: "07:00",
+                  closes: "21:00",
+                },
+              ],
+              contactPoint: {
+                "@type": "ContactPoint",
+                telephone: "+52-81-8168-4518",
+                contactType: "customer service",
+                email: "admin@sanpedromotocare.com",
+                availableLanguage: "Spanish",
+                contactOption: "TollFree",
+              },
+              sameAs: [
+                "https://instagram.com/sanpedromotocare",
+                "https://facebook.com/sanpedromotocare",
+              ],
+            }),
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -1,23 +1,14 @@
 /**
  * POST /api/payments/webhook
  *
- * Stripe webhook endpoint. Records the payment on the ticket when a
- * Checkout Session completes successfully.
+ * Events handled:
+ *   checkout.session.completed            — Tarjeta pagada | OXXO voucher generado
+ *   checkout.session.async_payment_succeeded — OXXO pagado en tienda
+ *   checkout.session.async_payment_failed    — Voucher OXXO expirado sin pago
+ *   payment_intent.payment_failed            — Fallo general de tarjeta
  *
- * Partial payments: if amountMXN < finalCost, the payment is recorded
- * as "parcial" in payments[] and totalPaid is updated. The ticket stays
- * in its current status. Only when totalPaid >= finalCost does the ticket
- * advance to "pagado".
- *
- * IMPORTANT: This route MUST receive the raw request body for signature
- * verification. Do NOT add body-parsing middleware.
- *
- * Stripe Dashboard setup:
- *   1. Webhooks → Add endpoint
- *   2. URL: https://spm-platform.vercel.app/api/payments/webhook
- *   3. Events to listen: checkout.session.completed
- *                        payment_intent.payment_failed  (optional, for alerts)
- *   4. Copy the "Signing secret" to STRIPE_WEBHOOK_SECRET in Vercel
+ * Webhook ID: we_1TTMZUFenduTmzTxvugWCQvN
+ * STRIPE_WEBHOOK_SECRET: whsec_2h8Z804WAXdlYkzZXMWUXcPG1yHRcFlO
  */
 
 import { NextRequest, NextResponse }   from "next/server";
@@ -49,6 +40,7 @@ export async function POST(req: NextRequest) {
         id: string;
         metadata?: {
           ticketId?: string;
+          orderId?: string;
           clientName?: string;
           clientPhone?: string;
           type?: string;
@@ -57,11 +49,51 @@ export async function POST(req: NextRequest) {
         payment_status?: string;
       };
 
-      const ticketId    = session.metadata?.ticketId;
       const clientName  = session.metadata?.clientName ?? "Cliente";
       const clientPhone = session.metadata?.clientPhone;
       const amountMXN   = session.amount_total != null ? session.amount_total / 100 : null;
-      const paymentType = session.metadata?.type ?? "servicio"; // "anticipo" | "servicio"
+      const paymentType = session.metadata?.type ?? "servicio";
+
+      // ── store_order ──────────────────────────────────────────────────────
+      if (paymentType === "store_order") {
+        const orderId = session.metadata?.orderId;
+        if (!orderId || amountMXN == null) {
+          console.warn("[StripeWebhook] Missing orderId in store_order session:", session.id);
+          return NextResponse.json({ received: true });
+        }
+
+        const db       = getAdminDb();
+        const orderRef = db.collection("store_orders").doc(orderId);
+
+        await orderRef.update({
+          status:          "pagado",
+          paymentMethod:   "stripe",
+          stripeSessionId: session.id,
+          totalPaid:       amountMXN,
+          paidAt:          FieldValue.serverTimestamp(),
+          updatedAt:       FieldValue.serverTimestamp(),
+        });
+
+        if (clientPhone) {
+          await sendWhatsApp({
+            to:   clientPhone,
+            body: [
+              `✅ *Pedido confirmado — ${orderId}*`,
+              ``,
+              `Hola ${clientName.split(" ")[0]}, recibimos tu pago de *$${amountMXN.toLocaleString("es-MX")} MXN*.`,
+              `Tu pedido está siendo preparado. Te avisaremos cuando esté en camino.`,
+              `¡Gracias por tu compra! 🏍️`,
+              `— SanPedroMotoCare`,
+            ].join("\n"),
+          });
+        }
+
+        console.info(`[StripeWebhook] Store order ${orderId} paid — $${amountMXN} MXN`);
+        return NextResponse.json({ received: true });
+      }
+
+      // ── service ticket ───────────────────────────────────────────────────
+      const ticketId = session.metadata?.ticketId;
 
       if (!ticketId || amountMXN == null) {
         console.warn("[StripeWebhook] Missing ticketId or amount in session:", session.id);
@@ -199,6 +231,71 @@ export async function POST(req: NextRequest) {
 
         await sendWhatsApp({ to: clientPhone, body: waBody });
       }
+    }
+
+    // ── checkout.session.async_payment_succeeded (OXXO pagado en tienda) ──
+    if (event.type === "checkout.session.async_payment_succeeded") {
+      const session = event.data.object as {
+        id: string;
+        metadata?: { ticketId?: string; orderId?: string; clientName?: string; clientPhone?: string; type?: string };
+        amount_total?: number | null;
+      };
+
+      const clientName  = session.metadata?.clientName ?? "Cliente";
+      const clientPhone = session.metadata?.clientPhone;
+      const amountMXN   = session.amount_total != null ? session.amount_total / 100 : null;
+      const paymentType = session.metadata?.type ?? "servicio";
+
+      if (paymentType === "store_order") {
+        const orderId = session.metadata?.orderId;
+        if (orderId && amountMXN != null) {
+          await getAdminDb().collection("store_orders").doc(orderId).update({
+            status: "pagado", paymentMethod: "oxxo", stripeSessionId: session.id,
+            totalPaid: amountMXN, paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+          });
+          if (clientPhone) await sendWhatsApp({ to: clientPhone, body: `✅ *Pedido confirmado — ${orderId}*\n\nHola ${clientName.split(" ")[0]}, recibimos tu pago OXXO de *$${amountMXN.toLocaleString("es-MX")} MXN*. Tu pedido está siendo preparado. ¡Gracias! 🏍️\n— SanPedroMotoCare` });
+        }
+      } else {
+        const ticketId = session.metadata?.ticketId;
+        if (ticketId && amountMXN != null) {
+          const snap = await getAdminDb().collection("service_tickets").where("ticketId", "==", ticketId).limit(1).get();
+          if (!snap.empty) {
+            const docRef    = snap.docs[0].ref;
+            const ticketDoc = snap.docs[0].data();
+            const newTotal  = (ticketDoc.totalPaid ?? 0) + amountMXN;
+            const isFullyPaid = (ticketDoc.finalCost ?? 0) > 0 ? newTotal >= ticketDoc.finalCost : true;
+            await docRef.update({
+              payments:      FieldValue.arrayUnion({ id: `PAY-OXXO-${Date.now()}`, type: isFullyPaid ? "final" : "parcial", method: "oxxo", amount: amountMXN, stripeSessionId: session.id, registeredBy: "stripe-webhook", createdAt: new Date() }),
+              totalPaid:     newTotal,
+              updatedAt:     FieldValue.serverTimestamp(),
+              ...(isFullyPaid ? { status: "pagado", paymentMethod: "oxxo", paidAt: FieldValue.serverTimestamp() } : {}),
+              statusHistory: FieldValue.arrayUnion({ status: isFullyPaid ? "pagado" : ticketDoc.status, timestamp: new Date(), note: `Pago OXXO confirmado — $${amountMXN.toLocaleString("es-MX")} MXN — Session ${session.id}` }),
+            });
+            if (clientPhone) await sendWhatsApp({ to: clientPhone, body: `✅ *Pago OXXO confirmado — ${ticketId}*\n\nHola ${clientName.split(" ")[0]}, recibimos tu pago de *$${amountMXN.toLocaleString("es-MX")} MXN*. ¡Gracias por confiar en SanPedroMotoCare! 🏍️\n— SanPedroMotoCare` });
+          }
+        }
+      }
+      console.info(`[StripeWebhook] OXXO payment succeeded — Session ${session.id}`);
+    }
+
+    // ── checkout.session.async_payment_failed (voucher OXXO expirado) ──────
+    if (event.type === "checkout.session.async_payment_failed") {
+      const session = event.data.object as {
+        id: string;
+        metadata?: { ticketId?: string; orderId?: string; clientName?: string; clientPhone?: string };
+      };
+
+      const clientPhone = session.metadata?.clientPhone;
+      const clientName  = (session.metadata?.clientName ?? "").split(" ")[0] || "Cliente";
+      const ticketId    = session.metadata?.ticketId ?? session.metadata?.orderId;
+
+      if (clientPhone) {
+        await sendWhatsApp({
+          to:   clientPhone,
+          body: `⚠️ Hola ${clientName}, tu voucher OXXO para el folio *${ticketId}* expiró sin recibir pago. Contáctanos para generar un nuevo link.\n— SanPedroMotoCare 🏍️`,
+        });
+      }
+      console.warn(`[StripeWebhook] OXXO voucher expired — Session ${session.id}`);
     }
 
     // ── payment_intent.payment_failed ──────────────────────────────────────

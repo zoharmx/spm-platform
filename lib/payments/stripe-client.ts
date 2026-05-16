@@ -29,9 +29,26 @@ export function getStripe(): Stripe {
   if (!_stripe) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-    _stripe = new Stripe(key, { apiVersion: "2026-03-25.dahlia" });
+    _stripe = new Stripe(key, {
+      apiVersion: "2026-03-25.dahlia",
+      maxNetworkRetries: 2,
+    });
   }
   return _stripe;
+}
+
+function stripeErrorMessage(err: unknown): string {
+  if (err instanceof Stripe.errors.StripeCardError)
+    return `Tarjeta rechazada: ${err.message}`;
+  if (err instanceof Stripe.errors.StripeInvalidRequestError)
+    return `Solicitud inválida: ${err.message}`;
+  if (err instanceof Stripe.errors.StripeAPIError)
+    return `Error de API Stripe: ${err.message}`;
+  if (err instanceof Stripe.errors.StripeConnectionError)
+    return "No se pudo conectar a Stripe. Intenta de nuevo.";
+  if (err instanceof Stripe.errors.StripeRateLimitError)
+    return "Límite de solicitudes Stripe alcanzado. Intenta en unos segundos.";
+  return err instanceof Error ? err.message : String(err);
 }
 
 export interface CreateCheckoutParams {
@@ -58,45 +75,54 @@ export interface CheckoutResult {
 export async function createCheckoutSession(params: CreateCheckoutParams): Promise<CheckoutResult> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://spm-platform.vercel.app";
 
+  // Idempotency window: 1 hour — prevents duplicates on retries within the same hour
+  const idempotencyKey = `checkout_${params.ticketId}_${params.type ?? "servicio"}_${Math.floor(Date.now() / 3_600_000)}`;
+
   try {
     const stripe  = getStripe();
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      currency: "mxn",
-      line_items: [
-        {
-          price_data: {
-            currency: "mxn",
-            product_data: {
-              name: `Servicio ${params.ticketId} — SanPedroMotoCare`,
-              description: params.serviceDescription,
-              metadata: { serviceType: params.serviceType },
-            },
-            unit_amount: Math.round(params.amountMXN * 100), // Stripe uses centavos
-          },
-          quantity: 1,
+    const session = await stripe.checkout.sessions.create(
+      {
+        payment_method_types: ["card", "oxxo"],
+        payment_method_options: {
+          oxxo: { expires_after_days: 3 }, // 3 días para pagar en tienda OXXO
         },
-      ],
-      metadata: {
-        ticketId:    params.ticketId,
-        clientName:  params.clientName,
-        clientPhone: params.clientPhone,
-        platform:    "spm-platform",
-        type:        params.type ?? "servicio",
-      },
-      customer_email: undefined, // Can add clientEmail if available
-      success_url: `${appUrl}/portal/pagar?status=success&ticket=${params.ticketId}`,
-      cancel_url:  `${appUrl}/portal/pagar?status=cancelled&ticket=${params.ticketId}`,
-      expires_at:  Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24h
-      payment_intent_data: {
-        description: `SPM ${params.ticketId} — ${params.clientName}`,
+        mode: "payment",
+        currency: "mxn",
+        line_items: [
+          {
+            price_data: {
+              currency: "mxn",
+              product_data: {
+                name: `Servicio ${params.ticketId} — SanPedroMotoCare`,
+                description: params.serviceDescription,
+                metadata: { serviceType: params.serviceType },
+              },
+              unit_amount: Math.round(params.amountMXN * 100),
+            },
+            quantity: 1,
+          },
+        ],
         metadata: {
           ticketId:    params.ticketId,
+          clientName:  params.clientName,
           clientPhone: params.clientPhone,
+          platform:    "spm-platform",
+          type:        params.type ?? "servicio",
+        },
+        success_url: `${appUrl}/portal/pagar?status=success&ticket=${params.ticketId}`,
+        cancel_url:  `${appUrl}/portal/pagar?status=cancelled&ticket=${params.ticketId}`,
+        expires_at:  Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24h
+        payment_intent_data: {
+          description:               `SPM ${params.ticketId} — ${params.clientName}`,
+          statement_descriptor_suffix: "SPMOTOCARE",
+          metadata: {
+            ticketId:    params.ticketId,
+            clientPhone: params.clientPhone,
+          },
         },
       },
-    });
+      { idempotencyKey },
+    );
 
     console.info(`[Stripe] Session created for ${params.ticketId} | ID: ${session.id}`);
     return {
@@ -105,7 +131,7 @@ export async function createCheckoutSession(params: CreateCheckoutParams): Promi
       sessionId: session.id,
     };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = stripeErrorMessage(err);
     console.error(`[Stripe] Failed to create session for ${params.ticketId}: ${msg}`);
     return { success: false, error: msg };
   }
@@ -135,6 +161,8 @@ export async function createStoreCheckoutSession(
   params: CreateStoreCheckoutParams
 ): Promise<CheckoutResult> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://spm-platform.vercel.app";
+  const idempotencyKey = `store_checkout_${params.orderId}_${Math.floor(Date.now() / 3_600_000)}`;
+
   try {
     const stripe = getStripe();
 
@@ -162,32 +190,39 @@ export async function createStoreCheckoutSession(
       });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      currency: "mxn",
-      line_items: lineItems,
-      customer_email: params.customerEmail,
-      metadata: {
-        orderId:       params.orderId,
-        clientName:    params.customerName,
-        clientPhone:   params.customerPhone,
-        platform:      "spm-platform",
-        type:          "store_order",
+    const session = await stripe.checkout.sessions.create(
+      {
+        payment_method_types: ["card", "oxxo"],
+        payment_method_options: {
+          oxxo: { expires_after_days: 3 },
+        },
+        mode: "payment",
+        currency: "mxn",
+        line_items: lineItems,
+        customer_email: params.customerEmail,
+        metadata: {
+          orderId:     params.orderId,
+          clientName:  params.customerName,
+          clientPhone: params.customerPhone,
+          platform:    "spm-platform",
+          type:        "store_order",
+        },
+        success_url: `${appUrl}/tienda/confirmacion?orderId=${params.orderId}&status=success`,
+        cancel_url:  `${appUrl}/tienda?cancelado=1`,
+        expires_at:  Math.floor(Date.now() / 1000) + 60 * 60 * 2, // 2h
+        payment_intent_data: {
+          description:               `Tienda SPM — Pedido ${params.orderId}`,
+          statement_descriptor_suffix: "SPMOTOCARE",
+          metadata: { orderId: params.orderId, clientPhone: params.customerPhone },
+        },
       },
-      success_url: `${appUrl}/tienda/confirmacion?orderId=${params.orderId}&status=success`,
-      cancel_url:  `${appUrl}/tienda?cancelado=1`,
-      expires_at:  Math.floor(Date.now() / 1000) + 60 * 60 * 2, // 2h
-      payment_intent_data: {
-        description: `Tienda SPM — Pedido ${params.orderId}`,
-        metadata: { orderId: params.orderId, clientPhone: params.customerPhone },
-      },
-    });
+      { idempotencyKey },
+    );
 
     console.info(`[Stripe] Store session created for ${params.orderId} | ID: ${session.id}`);
     return { success: true, url: session.url ?? undefined, sessionId: session.id };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = stripeErrorMessage(err);
     console.error(`[Stripe] Store session failed for ${params.orderId}: ${msg}`);
     return { success: false, error: msg };
   }

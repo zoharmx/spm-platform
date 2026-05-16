@@ -54,10 +54,10 @@ export default function PrivacidadPage() {
             <p>
               <strong>SanPedroMotoCare</strong> (en adelante "SPM", "nosotros" o "la empresa") es
               responsable del tratamiento de los datos personales que nos proporciones a través de
-              nuestro sitio web <strong>sanpedromotocare.mx</strong> y de nuestra aplicación web.
+              nuestro sitio web <strong>sanpedromotocare.com</strong> y de nuestra aplicación web.
               Puedes contactarnos en{" "}
-              <a href="mailto:contacto@sanpedromotocare.mx" className="text-[var(--color-spm-red)] hover:underline">
-                contacto@sanpedromotocare.mx
+              <a href="mailto:admin@sanpedromotocare.com" className="text-[var(--color-spm-red)] hover:underline">
+                admin@sanpedromotocare.com
               </a>.
             </p>
           </section>
@@ -120,8 +120,8 @@ export default function PrivacidadPage() {
             </ul>
             <p className="mt-3">
               Para ejercer tus derechos ARCO envía un correo a{" "}
-              <a href="mailto:contacto@sanpedromotocare.mx" className="text-[var(--color-spm-red)] hover:underline">
-                contacto@sanpedromotocare.mx
+              <a href="mailto:admin@sanpedromotocare.com" className="text-[var(--color-spm-red)] hover:underline">
+                admin@sanpedromotocare.com
               </a>{" "}
               con el asunto "Solicitud ARCO" e identificación oficial.
             </p>
@@ -151,8 +151,8 @@ export default function PrivacidadPage() {
               Si tienes dudas sobre esta política o el tratamiento de tus datos, contáctanos:
             </p>
             <ul className="list-none mt-2 space-y-1">
-              <li>📧 <a href="mailto:contacto@sanpedromotocare.mx" className="text-[var(--color-spm-red)] hover:underline">contacto@sanpedromotocare.mx</a></li>
-              <li>📱 <a href="https://wa.me/528100000000" target="_blank" rel="noopener noreferrer" className="text-[var(--color-spm-red)] hover:underline">WhatsApp: +52 81 0000-0000</a></li>
+              <li>📧 <a href="mailto:admin@sanpedromotocare.com" className="text-[var(--color-spm-red)] hover:underline">admin@sanpedromotocare.com</a></li>
+              <li>📱 <a href="https://wa.me/528181684518" target="_blank" rel="noopener noreferrer" className="text-[var(--color-spm-red)] hover:underline">WhatsApp: +52 81 8168-4518</a></li>
               <li>📍 San Pedro Garza García, Nuevo León, México</li>
             </ul>
           </section>

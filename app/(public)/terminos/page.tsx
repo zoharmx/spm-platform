@@ -53,7 +53,7 @@ export default function TerminosPage() {
             <h2 className="font-display font-bold text-lg mb-3">1. Aceptación de los términos</h2>
             <p>
               Al solicitar una cotización, crear una cuenta o contratar cualquier servicio a través
-              de <strong>sanpedromotocare.mx</strong>, aceptas quedar vinculado por estos Términos
+              de <strong>sanpedromotocare.com</strong>, aceptas quedar vinculado por estos Términos
               de Servicio. Si no estás de acuerdo, no uses nuestros servicios.
             </p>
           </section>
@@ -167,8 +167,8 @@ export default function TerminosPage() {
             <h2 className="font-display font-bold text-lg mb-3">11. Contacto</h2>
             <p>Para dudas sobre estos términos:</p>
             <ul className="list-none mt-2 space-y-1">
-              <li>📧 <a href="mailto:contacto@sanpedromotocare.mx" className="text-[var(--color-spm-red)] hover:underline">contacto@sanpedromotocare.mx</a></li>
-              <li>📱 <a href="https://wa.me/528100000000" target="_blank" rel="noopener noreferrer" className="text-[var(--color-spm-red)] hover:underline">WhatsApp: +52 81 0000-0000</a></li>
+              <li>📧 <a href="mailto:admin@sanpedromotocare.com" className="text-[var(--color-spm-red)] hover:underline">admin@sanpedromotocare.com</a></li>
+              <li>📱 <a href="https://wa.me/528181684518" target="_blank" rel="noopener noreferrer" className="text-[var(--color-spm-red)] hover:underline">WhatsApp: +52 81 8168-4518</a></li>
             </ul>
           </section>
         </div>

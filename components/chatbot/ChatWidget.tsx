@@ -303,7 +303,7 @@ export default function ChatWidget() {
       setMessages((prev) => [...prev, botMsg]);
       speak(replyText); // speak() already strips markdown internally
     } catch {
-      const errText = "Error de conexión. Contáctanos por WhatsApp: +52 81 0000-0000";
+      const errText = "Error de conexión. Contáctanos por WhatsApp: +52 81 8168-4518";
       setMessages((prev) => [
         ...prev,
         {
