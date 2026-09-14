@@ -8,7 +8,7 @@
  *   payment_intent.payment_failed            — Fallo general de tarjeta
  *
  * Webhook ID: we_1TTMZUFenduTmzTxvugWCQvN
- * STRIPE_WEBHOOK_SECRET: whsec_2h8Z804WAXdlYkzZXMWUXcPG1yHRcFlO
+ * El secreto de firma vive solo en la variable STRIPE_WEBHOOK_SECRET.
  */
 
 import { NextRequest, NextResponse }   from "next/server";
